@@ -2,3 +2,4 @@ Flask
 gradio_client
 requests
 gunicorn
+gTTS
