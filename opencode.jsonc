@@ -1,0 +1,6 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  // Default chat model for this project.
+  // The Google provider reads GEMINI_API_KEY from the environment — never put a key here.
+  "model": "google/gemini-3.5-flash-lite",
+}

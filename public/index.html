@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="km">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#08080f" />
+    <meta
+      name="description"
+      content="សំឡេង AI — បំលែងអក្សរខ្មែរ និងជាង ៤០ ភាសាទៅជាសំឡេងធម្មជាតិ។ បង្កើតសំឡេងក្លូនពីសំឡេងខ្លួនឯង។"
+    />
+    <title>សំឡេង AI — អក្សរទៅសំឡេង</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+              <path d="M4 10v4M8 6.5v11M12 3.5v17M16 7.5v9M20 10.5v3" />
+            </svg>
+          </span>
+          <div class="brand-text">
+            <h1>សំឡេង AI</h1>
+            <p id="status" class="status">…</p>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="keys-btn" class="key-btn" type="button" aria-haspopup="dialog">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+              <circle cx="8" cy="8" r="4" />
+              <path d="M11 11l9 9M17 17l2-2M20 20l2-2" stroke-linecap="round" />
+            </svg>
+            <span>Keys</span>
+          </button>
+        </div>
+      </header>
+
+      <nav class="tabs" id="tabs" role="tablist" aria-label="ម៉ឺនុយ">
+        <button class="tab is-active" type="button" data-tab="studio" role="tab" aria-selected="true">
+          បង្កើតសំឡេង
+        </button>
+        <button class="tab" type="button" data-tab="clone" role="tab" aria-selected="false">
+          សំឡេងខ្ញុំ
+        </button>
+      </nav>
+
+      <main>
+        <section id="studio" class="page" role="tabpanel" aria-label="បង្កើតសំឡេង">
+          <div class="hero">
+            <h2>សរសេរអក្សរ <span>ស្តាប់សំឡេង</span></h2>
+            <p>ភាសាខ្មែរ និងជាង ៤០ ភាសា · សំឡេង neural ធម្មជាតិ · ទាញយក MP3</p>
+          </div>
+
+          <div class="layout">
+            <div class="panel compose">
+              <div class="panel-head">
+                <label for="text">អត្ថបទ</label>
+                <span id="count" class="counter">0 / 5,000</span>
+              </div>
+
+              <textarea
+                id="text"
+                maxlength="5000"
+                rows="7"
+                placeholder="បញ្ចូលអត្ថបទនៅទីនេះ… ឧ. សួស្តី! នេះជាសំឡេងដែលបង្កើតដោយ AI។"
+                aria-label="អត្ថបទត្រូវអាន"
+              ></textarea>
+
+              <div class="samples" aria-label="គំរូអត្ថបទ">
+                <button class="sample" type="button" data-sample="greeting">ពាក្យស្វាគមន៍</button>
+                <button class="sample" type="button" data-sample="news">ព័ត៌មាន</button>
+                <button class="sample" type="button" data-sample="guide">ការណែនាំ</button>
+                <button class="sample" type="button" data-sample="poem">កំណាព្យ</button>
+              </div>
+
+              <div class="controls">
+                <div class="field grow">
+                  <label for="voice">សំឡេង</label>
+                  <select id="voice" aria-describedby="voice-note"></select>
+                  <p id="voice-note" class="note" hidden></p>
+                </div>
+
+                <div class="field" id="speed-field">
+                  <label for="speed">ល្បឿន <output id="speed-val" for="speed">1.0×</output></label>
+                  <input id="speed" type="range" min="0.5" max="1.5" step="0.05" value="1" />
+                </div>
+
+                <div class="field" id="pitch-field">
+                  <label for="pitch">កម្ពស់ <output id="pitch-val" for="pitch">0</output></label>
+                  <input id="pitch" type="range" min="-30" max="30" step="1" value="0" />
+                </div>
+              </div>
+
+              <button id="generate" class="primary wide" type="button">
+                <span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+                <span id="generate-label">បង្កើតសំឡេង</span>
+              </button>
+              <p class="hint">Ctrl + Enter ដើម្បីបង្កើតរហ័ស</p>
+            </div>
+
+            <aside class="side">
+              <div class="panel">
+                <div id="result-empty" class="result-empty">
+                  <span class="big" aria-hidden="true">🎧</span>
+                  <p>សំឡេងដែលបានបង្កើតនឹងបង្ហាញនៅទីនេះ</p>
+                </div>
+
+                <div id="result" hidden>
+                  <div class="result-head">
+                    <div>
+                      <h3 id="result-voice">…</h3>
+                      <p id="result-meta" class="meta">…</p>
+                    </div>
+                    <a id="download" class="download" download="voice.mp3">ទាញយក</a>
+                  </div>
+                  <audio id="audio" controls preload="metadata"></audio>
+                </div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <h3>ប្រវត្តិវគ្គនេះ</h3>
+                  <span id="history-count" class="counter">0</span>
+                </div>
+                <ul id="history" class="tracks"></ul>
+                <p id="history-empty" class="note">មិនទាន់មានទេ។</p>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section id="clone" class="page" role="tabpanel" aria-label="សំឡេងខ្ញុំ" hidden>
+          <div class="hero">
+            <h2>សំឡេង <span>ខ្ញុំ</span></h2>
+            <p>ថត ឬផ្ទុកសំឡេងខ្លួនឯង ១–៣ បំណែក រួចបង្កើតសំឡេងក្លូនសម្រាប់អានអត្ថបទ</p>
+          </div>
+
+          <div class="layout">
+            <div class="panel">
+              <h3>១. បន្ថែមគំរូសំឡេង</h3>
+              <p class="note">
+                ឯកសារ ១–៣ · ៣០ វិនាទី ដល់ ៣ នាទី · អតិបរមា ១០ MB ក្នុងមួយឯកសារ។
+                សំឡេងច្បាស់ គ្មានសំឡេងរំខាន = លទ្ធផលល្អជាង។
+              </p>
+              <p class="note">
+                CAMB.AI ទទួល mp3/wav/aac/flac — ការថតក្នុង browser (webm) ត្រូវបានបំលែងទៅ WAV
+                ស្វ័យប្រវត្តិ។ សម្រាប់ CAMB.AI ឯកសារទីមួយត្រូវបានប្រើ។
+              </p>
+
+              <div class="drop">
+                <button id="pick-files" class="ghost" type="button">📁 ជ្រើសឯកសារ</button>
+                <button id="record" class="ghost" type="button">🎙 ថតសំឡេង</button>
+                <span id="record-time" class="record-time" hidden>0:00</span>
+              </div>
+
+              <ul id="samples-list" class="samples-list"></ul>
+
+              <div class="field-row">
+                <div class="field">
+                  <label for="clone-provider">Provider</label>
+                  <select id="clone-provider">
+                    <option value="camb">CAMB.AI · ខ្មែរ</option>
+                    <option value="elevenlabs">ElevenLabs · ភាសាដទៃ</option>
+                  </select>
+                </div>
+                <div class="field" id="clone-gender-field">
+                  <label for="clone-gender">សំឡេង</label>
+                  <select id="clone-gender">
+                    <option value="2">ស្រី</option>
+                    <option value="1">ប្រុស</option>
+                  </select>
+                </div>
+                <div class="field" id="clone-lang-field">
+                  <label for="clone-lang">ភាសាគំរូ</label>
+                  <select id="clone-lang">
+                    <option value="km-kh">ខ្មែរ</option>
+                    <option value="en-us">English</option>
+                    <option value="th-th">ไทย</option>
+                    <option value="vi-vn">Tiếng Việt</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="clone-name">ឈ្មោះសំឡេង</label>
+                <input id="clone-name" type="text" maxlength="60" placeholder="ឧ. សំឡេងខ្ញុំ" />
+              </div>
+
+              <label class="consent" for="consent">
+                <input id="consent" type="checkbox" />
+                <span>
+                  ខ្ញុំបញ្ជាក់ថានេះជាសំឡេងរបស់ខ្ញុំ ឬខ្ញុំមានការអនុញ្ញាតច្បាស់លាស់ពីម្ចាស់សំឡេង។
+                  ខ្ញុំមិនប្រើវាដើម្បីបោកប្រាស់ ឬបំភាន់អ្នកដទៃទេ។
+                </span>
+              </label>
+
+              <button id="create-voice" class="primary wide" type="button">បង្កើតសំឡេងក្លូន</button>
+              <p id="clone-status" class="note" role="status"></p>
+            </div>
+
+            <aside class="side">
+              <div class="panel">
+                <div class="panel-head">
+                  <h3>សំឡេងដែលបានក្លូន</h3>
+                  <button id="refresh-voices" class="link-btn" type="button">ផ្ទុកឡើងវិញ</button>
+                </div>
+                <ul id="cloned" class="voice-list"></ul>
+                <p id="cloned-empty" class="note">មិនទាន់មានទេ។</p>
+              </div>
+
+              <div class="panel info">
+                <h3>ចំណាំអំពីភាសា</h3>
+                <p class="note">
+                  <strong>CAMB.AI</strong> គាំទ្រការក្លូនសំឡេង និងអានអក្សរខ្មែរ — ជាផ្លូវតែមួយគត់សម្រាប់
+                  “សំឡេងខ្ញុំ + ខ្មែរ” នៅលើ cloud។ <strong>ElevenLabs</strong> មិនទាន់គាំទ្រខ្មែរទេ ប៉ុន្តែគុណភាពល្អ
+                  សម្រាប់អង់គ្លេស ថៃ វៀតណាម។
+                </p>
+                <p class="note">
+                  ការក្លូនធ្វើឱ្យសំឡេង“ស្រដៀងខ្លាំង” ប៉ុណ្ណោះ — គ្មានប្រព័ន្ធណាធានាដូច 100% ទេ។
+                  បើត្រូវការដូចបំផុត ត្រូវប្រើ voice conversion (RVC) ដែលត្រូវការការបណ្តុះម៉ូដែល និង GPU។
+                </p>
+              </div>
+            </aside>
+          </div>
+        </section>
+      </main>
+
+      <div id="error" class="error" role="alert" hidden></div>
+
+      <footer class="foot">សំឡេងបង្កើតដោយ AI · សូមប្រើប្រាស់ដោយទំនួលខុសត្រូវ</footer>
+    </div>
+
+    <div id="key-modal" class="modal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="keys-title">
+        <h3 id="keys-title">API keys</h3>
+        <p class="modal-note">
+          Keys រក្សាទុកក្នុង browser នេះតែម្តង (localStorage) ហើយផ្ញើទៅ server តែពេលបង្កើតសំឡេង។
+          មិនដែលសរសេរចូល git ឬបង្ហាញជាសាធារណៈទេ។
+        </p>
+
+        <fieldset class="key-group">
+          <legend>Azure AI Speech <span class="pill">ខ្មែរ</span></legend>
+          <label for="azure-key">Key</label>
+          <input id="azure-key" type="password" autocomplete="off" spellcheck="false" placeholder="Azure Speech key" />
+          <label for="azure-region">Region</label>
+          <input id="azure-region" list="regions" autocomplete="off" spellcheck="false" placeholder="southeastasia" />
+          <datalist id="regions">
+            <option value="southeastasia"></option>
+            <option value="eastasia"></option>
+            <option value="centralindia"></option>
+            <option value="japaneast"></option>
+            <option value="koreacentral"></option>
+            <option value="australiaeast"></option>
+            <option value="westeurope"></option>
+            <option value="northeurope"></option>
+            <option value="eastus"></option>
+            <option value="westus2"></option>
+          </datalist>
+          <a
+            class="text-link"
+            href="https://portal.azure.com/#create/Microsoft.CognitiveServicesSpeechServices"
+            target="_blank"
+            rel="noopener noreferrer"
+            >បង្កើត Azure Speech resource ↗</a
+          >
+        </fieldset>
+
+        <fieldset class="key-group">
+          <legend>CAMB.AI <span class="pill">ក្លូនខ្មែរ</span></legend>
+          <label for="camb-key">Key</label>
+          <input id="camb-key" type="password" autocomplete="off" spellcheck="false" placeholder="CAMB.AI API key" />
+          <a
+            class="text-link"
+            href="https://studio.camb.ai"
+            target="_blank"
+            rel="noopener noreferrer"
+            >យក key ពី CAMB.AI Studio ↗</a
+          >
+        </fieldset>
+
+        <fieldset class="key-group">
+          <legend>ElevenLabs <span class="pill">សំឡេងក្លូន</span></legend>
+          <label for="eleven-key">Key</label>
+          <input id="eleven-key" type="password" autocomplete="off" spellcheck="false" placeholder="ElevenLabs API key" />
+          <a
+            class="text-link"
+            href="https://elevenlabs.io/app/settings/api-keys"
+            target="_blank"
+            rel="noopener noreferrer"
+            >យក key ពី ElevenLabs ↗</a
+          >
+        </fieldset>
+
+        <p id="key-error" class="key-error" role="alert" hidden></p>
+
+        <div class="modal-actions">
+          <button id="key-clear" class="ghost" type="button">លុបទាំងអស់</button>
+          <button id="key-cancel" class="ghost" type="button">បិទ</button>
+          <button id="key-save" class="primary" type="button">រក្សាទុក</button>
+        </div>
+      </div>
+    </div>
+
+    <input id="file-input" type="file" accept="audio/*" multiple hidden />
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

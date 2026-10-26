@@ -1,0 +1,8 @@
+node_modules/
+.wrangler/
+wrangler.log
+.dev.vars
+.env
+.env.*
+.DS_Store
+/freebuff-sites-build/
