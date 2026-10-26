@@ -1,0 +1,6 @@
+Flask
+gradio_client
+requests
+gunicorn
+gTTS>=2.5.0
+gtts-token>=1.1.4
