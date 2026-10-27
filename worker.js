@@ -21,6 +21,10 @@ const GOOGLE_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 const GOOGLE_LANGS = new Set(["km", "en", "th", "vi", "lo", "my", "id", "ms", "ja", "ko", "zh-CN"]);
 
+// Description stamped on every clone we create, used to tell our own voices
+// apart from CAMB.AI's public catalogue.
+const CLONE_MARKER = "Khmer Voice Studio";
+
 const MAX_TTS_CHARS = 3000;
 const MAX_JSON_BYTES = 64 * 1024;
 const MAX_CLONE_BYTES = 30 * 1024 * 1024;
@@ -35,9 +39,14 @@ export default {
     try {
       if (url.pathname === "/api/health") return health(env);
 
-      if (url.pathname === "/api/voices" || url.pathname === "/api/voices/camb") {
+      if (url.pathname === "/api/voices") {
         if (request.method !== "GET") return methodNotAllowed("GET");
-        return cambVoices(request, env);
+        return checkKey(request, env);
+      }
+
+      if (url.pathname.startsWith("/api/voices/") && url.pathname !== "/api/voices/clone") {
+        if (request.method !== "DELETE") return methodNotAllowed("DELETE");
+        return deleteVoice(request, env, url.pathname.slice("/api/voices/".length));
       }
 
       if (url.pathname === "/api/tts") {
@@ -49,6 +58,7 @@ export default {
         if (request.method !== "POST") return methodNotAllowed("POST");
         return cloneVoice(request, env);
       }
+
 
       if (url.pathname.startsWith("/api/")) {
         return json({ error: "not_found", message: "Unknown endpoint." }, 404);
@@ -86,11 +96,14 @@ function health(env) {
 
 /* ---------------- voices ---------------- */
 
-async function cambVoices(request, env) {
+// The site offers the visitor's own cloned voices, not CAMB.AI's public voice
+// catalogue, so this only verifies that the key works. The count is reported so
+// the UI can say something useful when a workspace has no voices yet.
+async function checkKey(request, env) {
   const key = cambKey(request, env);
   if (!key) {
     return json(
-      { error: "no_key", provider: "camb", message: "បញ្ចូល CAMB.AI key ដើម្បីបង្ហាញបញ្ជីសំឡេង។" },
+      { error: "no_key", provider: "camb", message: "បញ្ចូល CAMB.AI key ដើម្បីចាប់ផ្តើម។" },
       400,
     );
   }
@@ -106,18 +119,46 @@ async function cambVoices(request, env) {
 
   const data = await safeJsonAsync(response);
   const raw = Array.isArray(data) ? data : data?.voices || [];
+
+  // Only the clones this app created are listed; CAMB.AI's public catalogue is
+  // deliberately left out. The description is the marker set at clone time.
   const voices = raw
     .filter((voice) => voice && voice.id !== undefined)
+    .filter((voice) => String(voice.description || "").includes(CLONE_MARKER))
     .map((voice) => ({
       id: String(voice.id),
       name: voice.voice_name || voice.name || `CAMB ${voice.id}`,
-      gender:
-        String(voice.gender) === "1" ? "Male" : String(voice.gender) === "2" ? "Female" : "",
       language: typeof voice.language === "string" ? voice.language.toLowerCase() : "",
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    }));
 
-  return json({ provider: "camb", model: CAMB_MODEL, voices });
+  return json({ ok: true, provider: "camb", model: CAMB_MODEL, count: raw.length, voices });
+}
+
+async function deleteVoice(request, env, rawId) {
+  if (!sameOrigin(request)) return forbidden();
+
+  const id = decodeURIComponent(rawId);
+  if (!/^\d{1,12}$/.test(id)) {
+    return json({ error: "bad_voice", message: "That CAMB.AI voice id is not valid." }, 400);
+  }
+
+  const key = cambKey(request, env);
+  if (!key) {
+    return json({ error: "no_key", message: "Deleting a voice needs a CAMB.AI key." }, 400);
+  }
+
+  let response;
+  try {
+    response = await fetch(`${CAMB_API}/delete-voice/${id}`, {
+      method: "DELETE",
+      headers: { "x-api-key": key },
+    });
+  } catch {
+    return json({ error: "network", message: "Cannot reach CAMB.AI. Try again." }, 502);
+  }
+
+  if (!response.ok) return upstreamError(response, "CAMB.AI");
+  return json({ ok: true });
 }
 
 /* ---------------- text to speech ---------------- */
@@ -365,7 +406,7 @@ async function cambClone(request, env, form, name, entry) {
   outgoing.append("age", String(clamp(form.get("age"), 1, 100, 30)));
   outgoing.append("enhance_audio", "true");
   outgoing.append("language", language);
-  outgoing.append("description", "Cloned in Khmer Voice Studio");
+  outgoing.append("description", `Cloned in ${CLONE_MARKER}`);
   outgoing.append("file", new Blob([buffer], { type }), filename);
 
   let response;

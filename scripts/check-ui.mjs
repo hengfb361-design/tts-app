@@ -17,10 +17,7 @@ const html = fs.readFileSync("public/index.html", "utf8");
 const appJs = fs.readFileSync("public/app.js", "utf8");
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const VOICES = [
-  { id: "100", name: "Brad Collins", gender: "Female", language: "km-kh" },
-  { id: "147320", name: "Gary", gender: "Male", language: "en-us" },
-];
+const OWN = [{ id: "98765", name: "សំឡេងខ្ញុំ", language: "km-kh" }];
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -32,11 +29,12 @@ function json(data, status = 200) {
 function boot({
   key = "",
   server = { camb: false, google: true },
-  voices = VOICES,
+  own = OWN,
+  keyStatus = 200,
   ttsStatus = 200,
   ttsPayload = { error: "upstream", message: "Key មិនត្រឹមត្រូវ។" },
   cloneStatus = 200,
-  clonePayload = { ok: true, provider: "camb", voice_id: "98765" },
+  clonePayload = { ok: true, provider: "camb", voice_id: "55501" },
 } = {}) {
   const dom = new JSDOM(html, {
     url: "https://voice.example.com/",
@@ -63,7 +61,13 @@ function boot({
       if (!headers["x-camb-key"] && !server.camb) {
         return json({ error: "no_key", provider: "camb", message: "បញ្ចូល CAMB.AI key" }, 400);
       }
-      return json({ provider: "camb", model: "mars-8.1-flash-beta", voices });
+      if (keyStatus !== 200) return json({ error: "upstream", message: "Invalid/Expired API Key" }, keyStatus);
+      return json({ ok: true, provider: "camb", count: own.length + 200, voices: own });
+    }
+
+    if (/\/api\/voices\/\d+$/.test(href) && method === "DELETE") {
+      requests.push({ url: href, init, method, headers });
+      return json({ ok: true });
     }
 
     if (href.endsWith("/api/voices/clone") && method === "POST") {
@@ -95,8 +99,8 @@ async function waitFor(predicate, timeout = 2500) {
   return false;
 }
 
-async function settle() {
-  await wait(60);
+async function settle(ms = 60) {
+  await wait(ms);
 }
 
 function type(window, doc, text) {
@@ -109,6 +113,14 @@ function options(doc) {
   return [...doc.getElementById("voice").options].map((option) => ({ value: option.value, label: option.textContent }));
 }
 
+function attachSample(window, doc, name = "sample.wav") {
+  const file = new window.File([new Uint8Array(256)], name, { type: "audio/wav" });
+  const input = doc.getElementById("file-input");
+  Object.defineProperty(input, "files", { value: [file], configurable: true });
+  input.dispatchEvent(new window.Event("change", { bubbles: true }));
+  return file;
+}
+
 /* 1. free mode (no key) */ {
   console.log("free mode (no key)");
   const { window, doc, requests } = boot();
@@ -118,60 +130,97 @@ function options(doc) {
   check("key button unlabelled", doc.getElementById("keys-label").textContent === "CAMB.AI Key");
   const list = options(doc);
   check("free voices offered", list.filter((entry) => entry.value.startsWith("google:")).length === 4);
-  check("no camb voices without key", !list.some((entry) => entry.value.startsWith("camb:")));
+  check("no clone voices without a key", !list.some((entry) => entry.value.startsWith("camb:")));
   check("khmer free voice selected", doc.getElementById("voice").value === "google:km");
-  check("no voice list request without key", !requests.some((entry) => entry.url.endsWith("/api/voices")));
+  check("no key check without a key", !requests.some((entry) => entry.url.endsWith("/api/voices")));
+  check("empty library explained", doc.getElementById("cloned-empty").hidden === false);
 
   type(window, doc, "សួស្តីពិភពលោក");
   doc.getElementById("generate").click();
-  const sent = await waitFor(() => requests.some((entry) => entry.url.endsWith("/api/tts")));
+  await waitFor(() => requests.some((entry) => entry.url.endsWith("/api/tts")));
 
-  check("tts request sent", sent);
   const tts = requests.find((entry) => entry.url.endsWith("/api/tts"));
   check("google provider used", tts?.body.provider === "google" && tts?.body.voice === "km");
   check("no key header", !tts?.headers["x-camb-key"]);
   check("result shown", (await waitFor(() => doc.getElementById("result").hidden === false)) === true);
   check("history entry added", doc.getElementById("history-count").textContent === "1");
   check("download link set", doc.getElementById("download").getAttribute("href") === "blob:test");
-  check("speed hidden for free voice", doc.getElementById("speed-field").hidden === true);
+  check("speed hidden for the free voice", doc.getElementById("speed-field").hidden === true);
 }
 
-/* 2. key set: CAMB voices and speech */ {
-  console.log("camb mode");
+/* 2. key set: only my own clones are listed */ {
+  console.log("own clones only");
   const { window, doc, requests } = boot({ key: "camb-test-key-123" });
-  await waitFor(() => doc.getElementById("voice").options.length > 4);
+  await waitFor(() => options(doc).some((entry) => entry.value.startsWith("camb:")));
   await settle();
 
-  const listRequest = requests.find((entry) => entry.url.endsWith("/api/voices"));
-  check("voice list requested", Boolean(listRequest));
-  check("key sent on voice list", listRequest?.headers["x-camb-key"] === "camb-test-key-123");
+  const keyCheck = requests.find((entry) => entry.url.endsWith("/api/voices"));
+  check("key verified with the key header", keyCheck?.headers["x-camb-key"] === "camb-test-key-123");
 
   const list = options(doc);
-  check("camb voices listed", list.some((entry) => entry.value === "camb:100"));
-  check("gender shown in label", list.find((entry) => entry.value === "camb:100")?.label.includes("ស្រី"));
+  check("no CAMB.AI stock voices listed", list.every((entry) => !/Brad Collins|Gary|Aapo/.test(entry.label)));
+  check("my clone is listed", list.some((entry) => entry.value === "camb:98765"));
+  check("my clone auto-selected", doc.getElementById("voice").value === "camb:98765");
+  check("one library row", doc.getElementById("cloned").children.length === 1);
+  check(
+    "library row marks it as my clone",
+    doc.getElementById("cloned").textContent.includes("ក្លូនរបស់អ្នក"),
+  );
   check("status ok", doc.getElementById("status").className.includes("ok"));
-  check("key button marked", doc.getElementById("keys-label").textContent === "CAMB.AI Key ✓");
-
-  doc.getElementById("voice").value = "camb:147320";
-  doc.getElementById("voice").dispatchEvent(new window.Event("change", { bubbles: true }));
-  check("speed shown for camb voice", doc.getElementById("speed-field").hidden === false);
-  check("voice note names CAMB", doc.getElementById("voice-note").textContent.includes("CAMB.AI"));
+  check("speed shown for a clone", doc.getElementById("speed-field").hidden === false);
 
   doc.getElementById("speed").value = "1.3";
-  type(window, doc, "Hello from CAMB");
+  type(window, doc, "សួស្តី ពីសំឡេងក្លូន");
   doc.getElementById("generate").click();
   await waitFor(() => requests.some((entry) => entry.url.endsWith("/api/tts")));
 
   const tts = requests.find((entry) => entry.url.endsWith("/api/tts"));
-  check("camb provider used", tts?.body.provider === "camb" && tts?.body.voice === "147320");
-  check("voice language used", tts?.body.language === "en-us");
+  check("clone provider used", tts?.body.provider === "camb" && tts?.body.voice === "98765");
+  check("clone language used", tts?.body.language === "km-kh");
   check("speed forwarded", tts?.body.speed === 1.3);
   check("key header on tts", tts?.headers["x-camb-key"] === "camb-test-key-123");
-  check("camb result rendered", (await waitFor(() => doc.getElementById("result-voice").textContent.includes("Gary"))) === true);
-  check("camb credited in meta", doc.getElementById("result-meta").textContent.includes("CAMB.AI"));
+  check("clone credited in meta", (await waitFor(() => doc.getElementById("result-meta").textContent.includes("CAMB.AI"))) === true);
 }
 
-/* 3. key dialog */ {
+/* 3. key set but no clones yet */ {
+  console.log("key without clones");
+  const { doc } = boot({ key: "camb-test-key-123", own: [] });
+  await waitFor(() => doc.getElementById("status").className.includes("ok"));
+  await settle();
+
+  check("only free voices available", options(doc).every((entry) => entry.value.startsWith("google:")));
+  check(
+    "voice note points at the clone tab",
+    doc.getElementById("voice-note").textContent.includes("សំឡេងខ្ញុំ"),
+  );
+  check("library stays empty", doc.getElementById("cloned").children.length === 0);
+}
+
+/* 4. deleting one of my voices */ {
+  console.log("deleting a clone");
+  const { window, doc, requests } = boot({ key: "camb-test-key-123" });
+  await waitFor(() => options(doc).some((entry) => entry.value === "camb:98765"));
+
+  const row = doc.getElementById("cloned").children[0];
+  const remove = [...row.querySelectorAll("button")].find((button) => button.textContent === "លុប");
+  remove.click();
+  check("first click asks for confirmation", doc.getElementById("cloned").textContent.includes("ប្រាកដ?"));
+
+  const confirm = [...doc.getElementById("cloned").querySelectorAll("button")].find(
+    (button) => button.textContent === "ប្រាកដ?",
+  );
+  confirm.click();
+  await waitFor(() => doc.getElementById("cloned").children.length === 0);
+
+  const call = requests.find((entry) => entry.method === "DELETE");
+  check("delete request sent", call?.url.endsWith("/api/voices/98765"));
+  check("delete sends the key", call?.headers["x-camb-key"] === "camb-test-key-123");
+  check("row removed", doc.getElementById("cloned").children.length === 0);
+  check("dropdown drops the voice", !options(doc).some((entry) => entry.value === "camb:98765"));
+  check("list forgotten locally", window.localStorage.getItem("voicesite.clones") === "[]");
+}
+
+/* 5. key dialog */ {
   console.log("key dialog");
   const { window, doc, requests } = boot();
   await waitFor(() => doc.getElementById("status").textContent !== "…");
@@ -186,38 +235,34 @@ function options(doc) {
 
   doc.getElementById("camb-key").value = "valid-camb-key-abcdef";
   doc.getElementById("key-save").click();
-  await waitFor(() => options(doc).some((entry) => entry.value.startsWith("camb:")));
+  await waitFor(() => options(doc).some((entry) => entry.value === "camb:98765"));
 
   check("modal closes", doc.getElementById("key-modal").hidden === true);
   check("key stored", window.localStorage.getItem("voicesite.cambKey") === "valid-camb-key-abcdef");
-  check("voices loaded after save", options(doc).some((entry) => entry.value.startsWith("camb:")));
-  check("save triggers voice request with key", requests.some(
-    (entry) => entry.url.endsWith("/api/voices") && entry.headers["x-camb-key"] === "valid-camb-key-abcdef",
-  ));
-  check("status turns ok", doc.getElementById("status").className.includes("ok"));
   check(
-    "khmer CAMB voice auto-selected",
-    doc.getElementById("voice").value === "camb:100",
-    doc.getElementById("voice").value,
+    "key checked with the key header",
+    requests.some(
+      (entry) => entry.url.endsWith("/api/voices") && entry.headers["x-camb-key"] === "valid-camb-key-abcdef",
+    ),
   );
+  check("existing clone loaded", options(doc).some((entry) => entry.value === "camb:98765"));
+  check("status turns ok", doc.getElementById("status").className.includes("ok"));
 
   doc.getElementById("keys-btn").click();
   doc.getElementById("key-clear").click();
   check("clear removes key", !window.localStorage.getItem("voicesite.cambKey"));
-  check("clear drops camb voices", !options(doc).some((entry) => entry.value.startsWith("camb:")));
+  check("clear drops clones", !options(doc).some((entry) => entry.value.startsWith("camb:")));
   check("status warns again", doc.getElementById("status").className.includes("warn"));
 }
 
-/* 4. errors */ {
+/* 6. errors */ {
   console.log("errors");
-  const { window, doc, requests } = boot({
-    key: "camb-test-key-123",
-    ttsStatus: 502,
-    ttsPayload: { error: "upstream", message: "CAMB.AI key មិនត្រឹមត្រូវ។" },
-  });
-  await waitFor(() => doc.getElementById("voice").options.length > 4);
+  const wrongKey = boot({ key: "camb-test-key-123", keyStatus: 502 });
+  await waitFor(() => wrongKey.doc.getElementById("error").hidden === false);
+  check("bad key reported", wrongKey.doc.getElementById("error").textContent.includes("Invalid/Expired"));
 
-  doc.getElementById("voice").value = "camb:100";
+  const { window, doc } = boot({ key: "camb-test-key-123", ttsStatus: 502 });
+  await waitFor(() => doc.getElementById("status").className.includes("ok"));
   type(window, doc, "សាកល្បង");
   doc.getElementById("generate").click();
   await waitFor(() => doc.getElementById("error").hidden === false);
@@ -234,25 +279,34 @@ function options(doc) {
   check("no tts request past the cap", !free.requests.some((entry) => entry.url.endsWith("/api/tts")));
 }
 
-/* 5. cloning */ {
+/* 7. cloning */ {
   console.log("cloning");
-  const { window, doc, requests } = boot({ key: "camb-test-key-123" });
-  await waitFor(() => doc.getElementById("voice").options.length > 4);
+  const { window, doc, requests } = boot({ key: "camb-test-key-123", own: [] });
+  await waitFor(() => doc.getElementById("status").className.includes("ok"));
 
   doc.querySelector('.tab[data-tab="clone"]').click();
   check("clone tab visible", doc.getElementById("clone").hidden === false);
 
-  doc.getElementById("clone-name").value = "សំឡេងខ្ញុំ";
+  doc.getElementById("create-voice").click();
+  await settle();
+  check("name required", doc.getElementById("error").textContent.includes("ឈ្មោះ"));
+
+  doc.getElementById("clone-name").value = "សាកល្បង";
   doc.getElementById("create-voice").click();
   await settle();
   check("sample required", doc.getElementById("error").textContent.includes("ឯកសារសំឡេង"));
 
-  const file = new window.File([new Uint8Array(256)], "sample.wav", { type: "audio/wav" });
-  const input = doc.getElementById("file-input");
-  Object.defineProperty(input, "files", { value: [file], configurable: true });
-  input.dispatchEvent(new window.Event("change", { bubbles: true }));
+  doc.getElementById("clone-name").value = "";
+  attachSample(window, doc);
   check("sample listed", doc.getElementById("samples-list").children.length === 1);
+  check("name prefilled", doc.getElementById("clone-name").value === "សំឡេងខ្ញុំ");
 
+  doc.getElementById("clone-name").value = "";
+  doc.getElementById("create-voice").click();
+  await settle();
+  check("name still required when emptied", doc.getElementById("error").textContent.includes("ឈ្មោះ"));
+
+  doc.getElementById("clone-name").value = "សំឡេងខ្ញុំ";
   doc.getElementById("create-voice").click();
   await settle();
   check("consent required", doc.getElementById("error").textContent.includes("ការយល់ព្រម"));
@@ -271,20 +325,22 @@ function options(doc) {
   check("clone form gender", clone?.form?.get("gender") === "1");
   check("clone form language", clone?.form?.get("language") === "km-kh");
   check("clone form file attached", clone?.form?.get("files")?.size > 0);
-  check("clone success reported", (await waitFor(() => doc.getElementById("clone-status").textContent.includes("ជោគជ័យ"))) === true);
+
+  await waitFor(() => options(doc).some((entry) => entry.value === "camb:55501"));
+  check("new clone listed", options(doc).some((entry) => entry.value === "camb:55501"));
+  check("new clone selected", doc.getElementById("voice").value === "camb:55501");
+  check("new clone saved locally", window.localStorage.getItem("voicesite.clones")?.includes("55501"));
+  check("clone success reported", doc.getElementById("clone-status").textContent.includes("ជោគជ័យ"));
 
   const noKey = boot();
   await waitFor(() => noKey.doc.getElementById("status").textContent !== "…");
   noKey.doc.querySelector('.tab[data-tab="clone"]').click();
-  noKey.doc.getElementById("clone-name").value = "x";
-  const file2 = new noKey.window.File([new Uint8Array(128)], "s.wav", { type: "audio/wav" });
-  const input2 = noKey.doc.getElementById("file-input");
-  Object.defineProperty(input2, "files", { value: [file2], configurable: true });
-  input2.dispatchEvent(new noKey.window.Event("change", { bubbles: true }));
+  attachSample(noKey.window, noKey.doc, "s.wav");
   noKey.doc.getElementById("consent").checked = true;
   noKey.doc.getElementById("create-voice").click();
   await settle();
-  check("clone without key opens dialog", noKey.doc.getElementById("key-modal").hidden === false);
+  check("clone without key opens the dialog", noKey.doc.getElementById("key-modal").hidden === false);
+  check("no clone request without key", !noKey.requests.some((entry) => entry.url.endsWith("/api/voices/clone")));
 }
 
 console.log("");

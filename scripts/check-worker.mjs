@@ -79,8 +79,8 @@ function cloneForm({ name = "My voice", consent = "true", language = "km-kh", fi
   check("camb secret never returned", !payload.includes("secret-camb"));
 }
 
-/* 2. voice list */ {
-  console.log("voice list");
+/* 2. key check + own clones */ {
+  console.log("key check");
   reset();
   mock(() => {
     throw new Error("upstream should not be called");
@@ -96,8 +96,14 @@ function cloneForm({ name = "My voice", consent = "true", language = "km-kh", fi
     check("list-voices endpoint", url === "https://client.camb.ai/apis/list-voices", url);
     return jsonResponse({
       voices: [
-        { id: 147320, voice_name: "Gary", gender: 1, language: "en-us" },
-        { id: 100, voice_name: "Brad Collins", gender: 2, language: "km-kh" },
+        { id: 147320, voice_name: "Gary", gender: 1, language: "en-us", description: "A warm voice" },
+        { id: 100, voice_name: "Brad Collins", gender: 2, language: "km-kh", description: null },
+        {
+          id: 98765,
+          voice_name: "សំឡេងខ្ញុំ",
+          language: "km-kh",
+          description: "Cloned in Khmer Voice Studio",
+        },
       ],
     });
   });
@@ -107,13 +113,12 @@ function cloneForm({ name = "My voice", consent = "true", language = "km-kh", fi
     env,
   );
   const listData = await response.json();
-  check("status 200", response.status === 200);
+  check("status 200", response.status === 200 && listData.ok === true);
   check("key forwarded as x-api-key", calls[0]?.headers?.["x-api-key"] === "user-key");
-  check("voices normalized", listData.voices.length === 2 && listData.voices[0].id === "100");
-  check("voice names kept", listData.voices[0].name === "Brad Collins" && listData.voices[1].name === "Gary");
-  check("gender mapped", listData.voices[1].gender === "Male" && listData.voices[0].gender === "Female");
-  check("language kept", listData.voices[0].language === "km-kh");
-  check("sorted by name", listData.voices[0].name.localeCompare(listData.voices[1].name) <= 0);
+  check("workspace size reported", listData.count === 3);
+  check("only our clones returned", listData.voices.length === 1 && listData.voices[0].id === "98765");
+  check("clone name kept", listData.voices[0].name === "សំឡេងខ្ញុំ");
+  check("clone language kept", listData.voices[0].language === "km-kh");
 
   reset();
   mock(() => jsonResponse({ detail: "Invalid API key" }, 401));
@@ -124,6 +129,62 @@ function cloneForm({ name = "My voice", consent = "true", language = "km-kh", fi
   const badData = await badKey.json();
   check("upstream failure -> 502", badKey.status === 502 && badData.error === "upstream");
   check("upstream status reported", badData.upstreamStatus === 401);
+}
+
+/* 2b. deleting one of my voices */ {
+  console.log("delete voice");
+  reset();
+  mock((url) => {
+    check("delete-voice endpoint", url === "https://client.camb.ai/apis/delete-voice/98765", url);
+    return jsonResponse({ status: "ok" });
+  });
+
+  const response = await worker.fetch(
+    new Request("https://voice.example.com/api/voices/98765", {
+      method: "DELETE",
+      headers: { "x-camb-key": "user-key" },
+    }),
+    env,
+  );
+  check("delete 200", response.status === 200 && (await response.json()).ok === true);
+  check("DELETE method sent upstream", calls[0]?.init?.method === "DELETE");
+  check("key sent on delete", calls[0]?.headers?.["x-api-key"] === "user-key");
+
+  const badId = await worker.fetch(
+    new Request("https://voice.example.com/api/voices/abc", {
+      method: "DELETE",
+      headers: { "x-camb-key": "user-key" },
+    }),
+    env,
+  );
+  check("bad id -> 400", badId.status === 400 && (await badId.json()).error === "bad_voice");
+
+  const noKey = await worker.fetch(
+    new Request("https://voice.example.com/api/voices/98765", {
+      method: "DELETE",
+      headers: { origin: "https://voice.example.com" },
+    }),
+    env,
+  );
+  check("delete needs key", noKey.status === 400 && (await noKey.json()).error === "no_key");
+
+  const foreign = await worker.fetch(
+    new Request("https://voice.example.com/api/voices/98765", {
+      method: "DELETE",
+      headers: { "x-camb-key": "user-key", origin: "https://evil.example" },
+    }),
+    env,
+  );
+  check("cross-origin delete blocked", foreign.status === 403);
+
+  const wrongMethod = await worker.fetch(
+    new Request("https://voice.example.com/api/voices/98765", {
+      method: "POST",
+      headers: { "x-camb-key": "user-key" },
+    }),
+    env,
+  );
+  check("POST on a voice -> 405", wrongMethod.status === 405);
 }
 
 /* 3. text to speech (CAMB.AI) */ {
@@ -333,7 +394,7 @@ function cloneForm({ name = "My voice", consent = "true", language = "km-kh", fi
   check("assets fall through", asset.status === 200 && (await asset.text()) === "asset");
 
   const removedRoute = await worker.fetch(new Request("https://voice.example.com/api/voices/cloned"), env);
-  check("old elevenlabs route removed", removedRoute.status === 404);
+  check("old elevenlabs route gone", removedRoute.status === 405);
 }
 
 console.log("");

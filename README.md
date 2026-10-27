@@ -13,15 +13,19 @@
 
 | Provider | Free? | ខ្មែរ? | ក្លូនសំឡេង? | ចំណាំ |
 | --- | --- | --- | --- | --- |
-| **CAMB.AI MARS 8.1** | free plan មានកំណត់ | ✅ | ✅ | provider សំខាន់ · ត្រូវការ key មួយ |
+| **CAMB.AI MARS 8.1** | free plan មានកំណត់ | ✅ | ✅ | provider សំខាន់ · ត្រូវការ key មួយ · បង្ហាញ **តែសំឡេងក្លូនរបស់អ្នក** (មិនបង្ហាញសំឡេង stock របស់ CAMB.AI) |
 | **Google Translate voice** | ✅ ឥតគិតថ្លៃ ១០០% | ✅ | ❌ | key មិនបាច់ · ១,៥០០ តួអក្សរ · endpoint មិនផ្លូវការ (gTTS) · អាច rate limit |
 
 ## របៀបប្រើ
 
 1. បើកគេហទំព័រ → ចុច **CAMB.AI Key** (ខាងស្តាំលើ) → បិទភ្ជាប់ key → **រក្សាទុក**
-2. ជ្រើសសំឡេងក្នុងក្រុម **🎙 CAMB.AI · MARS 8.1** → សរសេរអត្ថបទ → **បង្កើតសំឡេង**
-3. លេង ឬចុច **ទាញយក** (MP3)
-4. ចង់បានសំឡេងខ្លួនឯង → ផ្ទាំង **សំឡេងខ្ញុំ**
+2. ផ្ទាំង **សំឡេងខ្ញុំ** → ផ្ទុក/ថតសំឡេងខ្លួនឯង → **បង្កើតសំឡេងក្លូន**
+3. ត្រឡប់ទៅ **បង្កើតសំឡេង** → សំឡេងក្លូនរបស់អ្នកត្រូវបានជ្រើសស្រាប់ → សរសេរអត្ថបទ → **បង្កើតសំឡេង**
+4. លេង ឬចុច **ទាញយក** (MP3)
+
+បញ្ជីសំឡេងបង្ហាញ **តែសំឡេងក្លូនដែលអ្នកបង្កើត** (រក្សាក្នុង browser ហើយផ្ទៀងផ្ទាត់ជាមួយ
+CAMB.AI រាល់ពេលបើក) បូកនឹងសំឡេងឥតគិតថ្លៃ — សំឡេង stock រាប់រយរបស់ CAMB.AI
+មិនត្រូវបានបង្ហាញទេ។ ចង់លុបសំឡេងក្លូនណាមួយ → ចុច **លុប** ក្នុងបញ្ជី (លុបនៅ CAMB.AI ដែរ)។
 
 មិនទាន់មាន key? ក្រុម **🎁 ឥតគិតថ្លៃ · Free** នៅតែបង្កើតសំឡេងខ្មែរបាន (ខ្លី)។
 
@@ -82,8 +86,8 @@ WAV ស្វ័យប្រវត្តិនៅក្នុង browser មុ�
 | Route | តួនាទី |
 | --- | --- |
 | `POST /api/tts` | បង្កើតសំឡេង (`provider: camb \\| google`) |
-| `GET /api/voices` | បញ្ជីសំឡេង CAMB.AI (ត្រូវការ `x-camb-key`) |
-| `GET /api/voices/camb` | ដូច `/api/voices` (ឈ្មោះចាស់) |
+| `GET /api/voices` | ផ្ទៀងផ្ទាត់ key + ត្រឡប់ **តែសំឡេងក្លូនរបស់អ្នក** (សម្គាល់ដោយ description) |
+| `DELETE /api/voices/:id` | លុបសំឡេងក្លូនមួយ (CAMB.AI `delete-voice`) |
 | `POST /api/voices/clone` | ក្លូន (multipart: `name`, `consent=true`, `gender`, `language`, `files`) |
 | `GET /api/health` | ស្ថានភាព server key |
 
@@ -108,7 +112,7 @@ npm run check      # តេស្ត៖ worker routes (mock CAMB.AI) + jsdom UI
 
 | File | តួនាទី |
 | --- | --- |
-| `worker.js` | TTS (CAMB.AI + free), បញ្ជីសំឡេង, ក្លូន, origin guard |
+| `worker.js` | TTS (CAMB.AI + free), key check, ក្លូន/លុបសំឡេង, origin guard |
 | `server.js` | Node entry point សម្រាប់ Render (ប្រើ `worker.js` ដូចគ្នា) |
 | `public/index.html` | ផ្ទាំងស្ទូឌីយោ + ក្លូនសំឡេង + key dialog |
 | `public/styles.css` | រចនាប័ទ្ម |

@@ -4,10 +4,10 @@
 
 const STORE = {
   cambKey: "voicesite.cambKey",
+  clones: "voicesite.clones",
   voice: "voicesite.voice",
   speed: "voicesite.speed",
   text: "voicesite.text",
-  language: "voicesite.language",
 };
 
 const MAX_CHARS = 3000;
@@ -91,8 +91,10 @@ const els = {
 const state = {
   cambKey: localStorage.getItem(STORE.cambKey) || "",
   serverCamb: false,
-  voices: [],
+  keyOk: false,
+  clones: [],
   samples: [],
+  pendingDelete: "",
   history: [],
   busy: false,
   resultUrl: "",
@@ -110,7 +112,9 @@ els.speed.value = String(Number.isFinite(storedSpeed) ? clamp(storedSpeed, 0.5, 
 els.text.value = localStorage.getItem(STORE.text) || "";
 els.cambKey.value = state.cambKey;
 
+state.clones = readClones();
 renderVoices();
+renderLibrary();
 updateVoiceUi();
 updateCount();
 updateRangeLabels();
@@ -119,8 +123,7 @@ boot();
 
 async function boot() {
   await checkHealth();
-  if (hasKey()) await loadVoices();
-  else renderVoices();
+  if (hasKey()) await verifyKey();
 }
 
 /* ---------------- keys ---------------- */
@@ -198,11 +201,52 @@ for (const button of document.querySelectorAll(".sample")) {
 
 /* ---------------- voices ---------------- */
 
-async function loadVoices() {
+function readClones() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORE.clones) || "[]");
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter((entry) => entry && /^\d{1,12}$/.test(String(entry.id)))
+      .map((entry) => ({
+        id: String(entry.id),
+        name: String(entry.name || `សំឡេង ${entry.id}`).slice(0, 60),
+        language: String(entry.language || "km-kh").toLowerCase(),
+        at: Number(entry.at) || 0,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+function saveClones() {
+  try {
+    localStorage.setItem(STORE.clones, JSON.stringify(state.clones));
+  } catch {
+    /* quota: the list still works this session */
+  }
+}
+
+function addClone(voice) {
+  const id = String(voice.id);
+  const existing = state.clones.find((item) => item.id === id);
+  const entry = {
+    id,
+    name: String(voice.name || existing?.name || `សំឡេង ${id}`).slice(0, 60),
+    language: String(voice.language || existing?.language || "km-kh").toLowerCase(),
+    at: existing?.at || Number(voice.at) || Date.now(),
+  };
+
+  state.clones = [entry, ...state.clones.filter((item) => item.id !== id)];
+  saveClones();
+}
+
+// Verifies the key and pulls back the clones this app created (the worker only
+// returns voices carrying our marker description, never CAMB.AI's catalogue).
+async function verifyKey() {
   if (!hasKey()) {
-    state.voices = [];
     renderVoices();
-    return;
+    renderLibrary();
+    return false;
   }
 
   try {
@@ -212,20 +256,23 @@ async function loadVoices() {
     const data = await response.json().catch(() => null);
 
     if (!response.ok) {
-      state.voices = [];
-      const message = data?.message || `មិនអាចផ្ទុកបញ្ជីសំឡេងបានទេ (${response.status})។`;
-      els.cloneStatus.textContent = message;
+      state.keyOk = false;
+      const message = data?.message || `Key មិនដំណើរការ (${response.status})។`;
       if (data?.error !== "no_key") showError(message);
-    } else {
-      state.voices = Array.isArray(data?.voices) ? data.voices : [];
+      renderVoices();
+      renderLibrary();
+      return false;
     }
+
+    state.keyOk = true;
+    for (const voice of data?.voices || []) addClone(voice);
   } catch {
-    state.voices = [];
     showError("មិនអាចភ្ជាប់ទៅ server បានទេ — សំឡេងឥតគិតថ្លៃនៅតែប្រើបាន។");
   }
 
   renderVoices();
   renderLibrary();
+  return true;
 }
 
 function providerOf(value) {
@@ -244,12 +291,11 @@ function renderVoices() {
   }
   nodes.push(free);
 
-  if (state.voices.length) {
+  if (state.clones.length) {
     const group = document.createElement("optgroup");
-    group.label = "🎙 CAMB.AI · MARS 8.1";
-    for (const voice of state.voices) {
-      const gender = voice.gender === "Female" ? "ស្រី" : voice.gender === "Male" ? "ប្រុស" : "";
-      group.append(new Option(gender ? `${voice.name} · ${gender}` : voice.name, `camb:${voice.id}`));
+    group.label = "🎙 សំឡេងខ្ញុំ · ក្លូន";
+    for (const voice of state.clones) {
+      group.append(new Option(voice.name, `camb:${voice.id}`));
     }
     nodes.push(group);
   }
@@ -257,11 +303,11 @@ function renderVoices() {
   els.voice.replaceChildren(...nodes);
 
   const available = [...els.voice.options].map((option) => option.value);
-  const khmerCamb = state.voices.find((voice) => String(voice.language || "").startsWith("km")) || state.voices[0];
+  const firstClone = state.clones[0];
   const preferred = [
     previous,
     localStorage.getItem(STORE.voice) || "",
-    khmerCamb ? `camb:${khmerCamb.id}` : "",
+    firstClone ? `camb:${firstClone.id}` : "",
     "google:km",
     available[0] || "",
   ];
@@ -276,8 +322,8 @@ function currentVoice() {
   const provider = providerOf(value);
   const id = value.slice(value.indexOf(":") + 1);
   const label = els.voice.selectedOptions?.[0]?.textContent || id;
-  const match = state.voices.find((voice) => voice.id === id);
-  return { provider, id, label, value, language: match?.language || "" };
+  const clone = provider === "camb" ? state.clones.find((voice) => voice.id === id) : null;
+  return { provider, id, label, value, language: clone?.language || "" };
 }
 
 function updateVoiceUi() {
@@ -288,15 +334,21 @@ function updateVoiceUi() {
   els.voiceNote.hidden = false;
 
   if (!voice.value) {
-    els.voiceNote.textContent = "មិនទាន់មានសំឡេង — បញ្ចូល CAMB.AI key ឬផ្ទុកបញ្ជីឡើងវិញ។";
+    els.voiceNote.textContent = hasKey()
+      ? "មិនទាន់មានសំឡេងក្លូន — ផ្ទុកសំឡេងរបស់អ្នកនៅផ្ទាំង “សំឡេងខ្ញុំ” រួចបង្កើតសំឡេងក្លូន។"
+      : "បញ្ចូល CAMB.AI key ដើម្បីប្រើសំឡេងក្លូនរបស់អ្នក។";
     updateRangeLabels();
     return;
   }
 
-  els.voiceNote.textContent =
-    voice.provider === "google"
-      ? "សំឡេងឥតគិតថ្លៃ · Google Translate (unofficial)"
-      : "CAMB.AI · MARS 8.1 (ខ្មែរ + ក្លូន)";
+  if (voice.provider === "google") {
+    els.voiceNote.textContent =
+      hasKey() && !state.clones.length
+        ? "សំឡេងឥតគិតថ្លៃ · បង្កើតសំឡេងក្លូនរបស់អ្នកនៅផ្ទាំង “សំឡេងខ្ញុំ” ដើម្បីប្រើសំឡេងរបស់អ្នក"
+        : "សំឡេងឥតគិតថ្លៃ · Google Translate (unofficial)";
+  } else {
+    els.voiceNote.textContent = "សំឡេងក្លូនរបស់អ្នក · CAMB.AI MARS 8.1";
+  }
 
   updateRangeLabels();
   if (state.voiceTouched && voice.value) localStorage.setItem(STORE.voice, voice.value);
@@ -309,7 +361,7 @@ els.voice.addEventListener("change", () => {
 
 function renderLibrary() {
   els.cloned.replaceChildren(
-    ...state.voices.map((voice) => {
+    ...state.clones.map((voice) => {
       const item = document.createElement("li");
       item.className = "voice-row";
 
@@ -322,7 +374,7 @@ function renderLibrary() {
 
       const meta = document.createElement("p");
       meta.className = "track-meta";
-      meta.textContent = `CAMB.AI · ${voice.language || "km-kh"}`;
+      meta.textContent = `ក្លូនរបស់អ្នក · ${voice.language || "km-kh"}`;
 
       info.append(name, meta);
 
@@ -340,12 +392,49 @@ function renderLibrary() {
         els.text.focus();
       });
 
-      item.append(info, use);
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "chip small danger";
+      remove.textContent = state.pendingDelete === voice.id ? "ប្រាកដ?" : "លុប";
+      remove.addEventListener("click", () => deleteClone(voice));
+
+      item.append(info, use, remove);
       return item;
     }),
   );
 
-  els.clonedEmpty.hidden = state.voices.length > 0;
+  els.clonedEmpty.hidden = state.clones.length > 0;
+}
+
+async function deleteClone(voice) {
+  if (state.pendingDelete !== voice.id) {
+    state.pendingDelete = voice.id;
+    renderLibrary();
+    setTimeout(() => {
+      if (state.pendingDelete === voice.id) {
+        state.pendingDelete = "";
+        renderLibrary();
+      }
+    }, 4000);
+    return;
+  }
+
+  state.pendingDelete = "";
+  try {
+    const headers = {};
+    if (state.cambKey) headers["x-camb-key"] = state.cambKey;
+    const response = await fetch(`/api/voices/${encodeURIComponent(voice.id)}`, { method: "DELETE", headers });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(data?.message || `លុបមិនបានទេ (${response.status})។`);
+
+    state.clones = state.clones.filter((item) => item.id !== voice.id);
+    saveClones();
+    renderLibrary();
+    renderVoices();
+  } catch (error) {
+    renderLibrary();
+    showError(error?.message || "លុបមិនបានទេ។");
+  }
 }
 
 /* ---------------- text to speech ---------------- */
@@ -584,15 +673,17 @@ async function saveKey() {
   closeKeys();
   updateStatus();
 
-  await loadVoices();
-  if (!state.voices.length && hasKey()) {
-    showError("Key នេះមិនអាចផ្ទុកបញ្ជីសំឡេងបានទេ — សូមពិនិត្យថាវាត្រឹមត្រូវ។");
+  const valid = await verifyKey();
+  if (!valid && hasKey()) {
+    showError("Key នេះមិនដំណើរការទេ — សូមពិនិត្យថាវាត្រឹមត្រូវ។");
   }
 }
 
 function clearKey() {
   state.cambKey = "";
-  state.voices = [];
+  state.keyOk = false;
+  state.clones = [];
+  localStorage.removeItem(STORE.clones);
   localStorage.removeItem(STORE.cambKey);
   els.cambKey.value = "";
   els.keyError.hidden = true;
@@ -626,7 +717,7 @@ function setTab(name) {
   els.studio.hidden = target !== "studio";
   els.clone.hidden = target !== "clone";
 
-  if (target === "clone" && hasKey() && !state.voices.length) loadVoices();
+  if (target === "clone" && hasKey() && !state.clones.length) verifyKey();
 }
 
 /* ---------------- voice cloning ---------------- */
@@ -639,7 +730,7 @@ els.fileInput.addEventListener("change", () => {
 
 els.record.addEventListener("click", toggleRecord);
 els.createVoice.addEventListener("click", createVoice);
-els.refreshVoices.addEventListener("click", () => loadVoices());
+els.refreshVoices.addEventListener("click", () => verifyKey());
 
 function addSample(files) {
   hideError();
@@ -656,6 +747,10 @@ function addSample(files) {
       continue;
     }
     state.samples = [file];
+  }
+
+  if (state.samples.length && !els.cloneName.value.trim()) {
+    els.cloneName.value = "សំឡេងខ្ញុំ";
   }
 
   renderSamples();
@@ -810,13 +905,16 @@ async function createVoice() {
     const data = await response.json().catch(() => null);
     if (!response.ok) throw new Error(data?.message || `ការក្លូនបរាជ័យ (${response.status})។`);
 
+    addClone({ id: data?.voice_id, name, language: els.cloneLang.value });
+
     state.samples = [];
     renderSamples();
     els.cloneName.value = "";
     els.consent.checked = false;
-    els.cloneStatus.textContent = "✓ បង្កើតសំឡេងក្លូនបានជោគជ័យ។ ជ្រើសវាក្នុងបញ្ជីសំឡេង។";
+    els.cloneStatus.textContent = "✓ បង្កើតសំឡេងក្លូនបានជោគជ័យ។ ឥឡូវវាត្រូវបានជ្រើសសម្រាប់អានអត្ថបទ។";
 
-    await loadVoices();
+    renderLibrary();
+    renderVoices();
 
     const value = `camb:${data?.voice_id}`;
     if ([...els.voice.options].some((option) => option.value === value)) {
