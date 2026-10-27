@@ -257,7 +257,14 @@ function renderVoices() {
   els.voice.replaceChildren(...nodes);
 
   const available = [...els.voice.options].map((option) => option.value);
-  const preferred = [previous, localStorage.getItem(STORE.voice) || "", "google:km", available[0] || ""];
+  const khmerCamb = state.voices.find((voice) => String(voice.language || "").startsWith("km")) || state.voices[0];
+  const preferred = [
+    previous,
+    localStorage.getItem(STORE.voice) || "",
+    khmerCamb ? `camb:${khmerCamb.id}` : "",
+    "google:km",
+    available[0] || "",
+  ];
   const chosen = preferred.find((value) => value && available.includes(value)) || "";
   els.voice.value = chosen;
 

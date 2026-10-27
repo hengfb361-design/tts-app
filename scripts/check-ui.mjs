@@ -195,6 +195,11 @@ function options(doc) {
     (entry) => entry.url.endsWith("/api/voices") && entry.headers["x-camb-key"] === "valid-camb-key-abcdef",
   ));
   check("status turns ok", doc.getElementById("status").className.includes("ok"));
+  check(
+    "khmer CAMB voice auto-selected",
+    doc.getElementById("voice").value === "camb:100",
+    doc.getElementById("voice").value,
+  );
 
   doc.getElementById("keys-btn").click();
   doc.getElementById("key-clear").click();
