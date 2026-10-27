@@ -219,7 +219,7 @@ async function cambSpeech(request, env, body, text) {
 
   let response;
   try {
-    response = await fetch(`${CAMB_API}/tts-stream`, {
+    response = await cambFetch(`${CAMB_API}/tts-stream`, {
       method: "POST",
       headers: { "x-api-key": key, "content-type": "application/json" },
       body: JSON.stringify(payload),
@@ -496,7 +496,29 @@ function clamp(value, min, max, fallback) {
   return Math.min(max, Math.max(min, number));
 }
 
+// CAMB.AI limits requests per minute on smaller plans; a short backoff usually
+// rides it out instead of making the visitor press the button again.
+const CAMB_RETRIES = 2;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function cambFetch(url, options) {
+  let response = await fetch(url, options);
+
+  for (let attempt = 1; attempt <= CAMB_RETRIES; attempt += 1) {
+    if (response.status !== 429) return response;
+    await response.text().catch(() => "");
+    await sleep(1200 * attempt);
+    response = await fetch(url, options);
+  }
+
+  return response;
+}
+
 async function upstreamError(response, provider) {
+  const retryAfter = Number(response.headers.get("retry-after"));
   const raw = await response.text().catch(() => "");
   const parsed = (() => {
     try {
@@ -506,8 +528,23 @@ async function upstreamError(response, provider) {
     }
   })();
 
+  console.error(provider, "failed", response.status, raw.slice(0, 240));
+
+  if (response.status === 429) {
+    const wait = Number.isFinite(retryAfter) && retryAfter > 0 ? `${Math.min(retryAfter, 120)} វិនាទី` : "ប្រហែល ១ នាទី";
+    return json(
+      {
+        error: "rate_limited",
+        provider,
+        upstreamStatus: 429,
+        message: `${provider} កំពត់ចំនួនសំណើ (Too Many Requests)។ សូមរង់ចាំ ${wait} រួចព្យាយាមម្តងទៀត។ បើនៅតែកើតឡើង សូមពិនិត្យ plan/credits ក្នុង CAMB.AI Studio។`,
+      },
+      429,
+    );
+  }
+
   const detail = Array.isArray(parsed?.detail) ? parsed.detail[0]?.msg : parsed?.detail?.message;
-  const message =
+  const upstream =
     (typeof detail === "string" && detail) ||
     parsed?.error?.message ||
     (typeof parsed?.payload === "string" && parsed.payload) ||
@@ -515,9 +552,15 @@ async function upstreamError(response, provider) {
     raw.replace(/\s+/g, " ").slice(0, 240) ||
     `${provider} request failed.`;
 
-  const status = response.status === 429 ? 429 : 502;
-  console.error(provider, "failed", response.status, raw.slice(0, 240));
-  return json({ error: "upstream", provider, upstreamStatus: response.status, message }, status);
+  const hint =
+    response.status === 401 || response.status === 403
+      ? " — សូមពិនិត្យ key និង credits ក្នុង CAMB.AI Studio។"
+      : "";
+
+  return json(
+    { error: "upstream", provider, upstreamStatus: response.status, message: `${upstream}${hint}` },
+    502,
+  );
 }
 
 async function safeJsonAsync(response) {

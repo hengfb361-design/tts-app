@@ -249,6 +249,35 @@ function cloneForm({ name = "My voice", consent = "true", language = "km-kh", fi
   check("upstream 422 -> 502 with detail", upstreamFail.status === 502 && failData.message.includes("not supported"));
 }
 
+/* 3b. CAMB.AI rate limiting */ {
+  console.log("tts rate limit");
+  reset();
+  let attempt = 0;
+  mock(() => {
+    attempt += 1;
+    if (attempt === 1) return jsonResponse({ detail: "Too Many Requests" }, 429);
+    return new Response(audioBytes(24), { headers: { "content-type": "audio/mpeg" } });
+  });
+
+  const recovered = await worker.fetch(
+    jsonApi("/api/tts", { text: "សួស្តី", voice: "100" }, { "x-camb-key": "k" }),
+    env,
+  );
+  check("429 is retried and the audio still arrives", recovered.status === 200);
+  check("retry used a second upstream call", calls.length === 2, `calls=${calls.length}`);
+
+  reset();
+  mock(() => jsonResponse({ detail: "Too Many Requests" }, 429));
+  const limited = await worker.fetch(
+    jsonApi("/api/tts", { text: "សួស្តី", voice: "100" }, { "x-camb-key": "k" }),
+    env,
+  );
+  const limitedData = await limited.json();
+  check("persistent 429 -> 429", limited.status === 429 && limitedData.error === "rate_limited");
+  check("rate limit explained in Khmer", limitedData.message.includes("កំពត់ចំនួនសំណើ"));
+  check("retries are capped", calls.length === 3, `calls=${calls.length}`);
+}
+
 /* 4. free google voice */ {
   console.log("tts (free google)");
   reset();
