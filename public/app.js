@@ -1,39 +1,27 @@
 // Khmer Voice Studio — front end.
-// Providers:
-//   google      free Google Translate voice (no key, Khmer)
-//   azure       Azure Speech neural voices (key, Khmer, best quality)
-//   camb        CAMB.AI MARS 8.1 (key, Khmer + voice cloning)
-//   elevenlabs  ElevenLabs (key, other languages + voice cloning)
+// One keyed provider: CAMB.AI MARS 8.1 (Khmer, 300+ locales, voice cloning).
+// The keyless Google voice stays as the free "just try it" option.
 
 const STORE = {
-  azureKey: "voicesite.azureKey",
-  azureRegion: "voicesite.azureRegion",
   cambKey: "voicesite.cambKey",
-  elevenKey: "voicesite.elevenKey",
   voice: "voicesite.voice",
   speed: "voicesite.speed",
-  pitch: "voicesite.pitch",
   text: "voicesite.text",
+  language: "voicesite.language",
 };
 
-const MAX_CHARS = 5000;
-const MAX_CLONE_FILES = 3;
+const MAX_CHARS = 3000;
+const FREE_MAX_CHARS = 1500;
 const MAX_CLONE_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_HISTORY = 6;
-const DEFAULT_REGION = "southeastasia";
-const FREE_MAX_CHARS = 1500;
-const CAMB_MAX_CHARS = 3000;
-const FREE_VOICES = [
-  { id: "km", name: "ខ្មែរ · Khmer", provider: "google" },
-  { id: "en", name: "English", provider: "google" },
-  { id: "th", name: "ไทย · Thai", provider: "google" },
-  { id: "vi", name: "Tiếng Việt", provider: "google" },
-];
-const AZURE_FALLBACK = [
-  { id: "km-KH-SreymomNeural", name: "Sreymom", gender: "Female", locale: "km-KH", localeName: "Khmer (Cambodia)" },
-  { id: "km-KH-PisethNeural", name: "Piseth", gender: "Male", locale: "km-KH", localeName: "Khmer (Cambodia)" },
-];
 const CAMB_FILE_RE = /\.(aac|flac|mp3|wav)$/i;
+
+const FREE_VOICES = [
+  { id: "km", name: "ខ្មែរ · Khmer", language: "km" },
+  { id: "en", name: "English", language: "en" },
+  { id: "th", name: "ไทย · Thai", language: "th" },
+  { id: "vi", name: "Tiếng Việt", language: "vi" },
+];
 
 const SAMPLES = {
   greeting:
@@ -41,46 +29,15 @@ const SAMPLES = {
   news:
     "ថ្ងៃនេះអាកាសធាតុនៅរាជធានីភ្នំពេញ មានពន្លឺថ្ងៃ និងសីតុណ្ហភាពប្រហែល ៣២ អង្សាសេ។ សូមពិនិត្យស្ថានភាពចរាចរណ៍មុនចេញដំណើរ។",
   guide:
-    "ដើម្បីប្រើប្រាស់សេវានេះ៖ ទីមួយ ជ្រើសរើសសំឡេង។ ទីពីរ សរសេរអត្ថបទរបស់អ្នក។ ទីបី ចុចបង្កើតសំឡេង ហើយទាញយកជា MP3 ឬ WAV។",
+    "ដើម្បីប្រើប្រាស់សេវានេះ៖ ទីមួយ ជ្រើសរើសសំឡេង។ ទីពីរ សរសេរអត្ថបទរបស់អ្នក។ ទីបី ចុចបង្កើតសំឡេង ហើយទាញយកជា MP3។",
   poem:
     "ខ្មែរយើងស្រឡាញ់សន្តិភាព និងធម្មជាតិ។ ទន្លេមេគង្គហូរកាត់ដីខ្មែរ នាំមកនូវជីវិត និងក្តីសង្ឃឹមថ្មី។",
-};
-
-const LOCALE_LABELS = {
-  "km-KH": "ខ្មែរ · Khmer",
-  "en-US": "English (US)",
-  "en-GB": "English (UK)",
-  "en-AU": "English (AU)",
-  "en-IN": "English (IN)",
-  "th-TH": "ไทย · Thai",
-  "vi-VN": "Tiếng Việt",
-  "my-MM": "မြန်မာ · Burmese",
-  "lo-LA": "ລາວ · Lao",
-  "ja-JP": "日本語 · Japanese",
-  "ko-KR": "한국어 · Korean",
-  "zh-CN": "中文 (简体)",
-  "zh-TW": "中文 (台灣)",
-  "zh-HK": "中文 (香港)",
-  "id-ID": "Bahasa Indonesia",
-  "ms-MY": "Bahasa Melayu",
-  "fr-FR": "Français",
-  "de-DE": "Deutsch",
-  "es-ES": "Español",
-  "it-IT": "Italiano",
-  "pt-BR": "Português (BR)",
-  "ru-RU": "Русский",
-  "hi-IN": "हिन्दी · Hindi",
-  "ar-SA": "العربية · Arabic",
-  "tr-TR": "Türkçe",
-  "nl-NL": "Nederlands",
-  "pl-PL": "Polski",
-  "uk-UA": "Українська",
-  "fil-PH": "Filipino",
 };
 
 const els = {
   status: document.getElementById("status"),
   keysBtn: document.getElementById("keys-btn"),
+  keysLabel: document.getElementById("keys-label"),
   tabs: document.getElementById("tabs"),
   studio: document.getElementById("studio"),
   clone: document.getElementById("clone"),
@@ -90,9 +47,6 @@ const els = {
   speed: document.getElementById("speed"),
   speedField: document.getElementById("speed-field"),
   speedVal: document.getElementById("speed-val"),
-  pitch: document.getElementById("pitch"),
-  pitchVal: document.getElementById("pitch-val"),
-  pitchField: document.getElementById("pitch-field"),
   voice: document.getElementById("voice"),
   voiceNote: document.getElementById("voice-note"),
   generate: document.getElementById("generate"),
@@ -113,11 +67,8 @@ const els = {
   record: document.getElementById("record"),
   recordTime: document.getElementById("record-time"),
   samplesList: document.getElementById("samples-list"),
-  cloneProvider: document.getElementById("clone-provider"),
   cloneGender: document.getElementById("clone-gender"),
-  cloneGenderField: document.getElementById("clone-gender-field"),
   cloneLang: document.getElementById("clone-lang"),
-  cloneLangField: document.getElementById("clone-lang-field"),
   cloneName: document.getElementById("clone-name"),
   consent: document.getElementById("consent"),
   createVoice: document.getElementById("create-voice"),
@@ -130,10 +81,7 @@ const els = {
   fileInput: document.getElementById("file-input"),
 
   modal: document.getElementById("key-modal"),
-  azureKey: document.getElementById("azure-key"),
-  azureRegion: document.getElementById("azure-region"),
   cambKey: document.getElementById("camb-key"),
-  elevenKey: document.getElementById("eleven-key"),
   keyError: document.getElementById("key-error"),
   keySave: document.getElementById("key-save"),
   keyCancel: document.getElementById("key-cancel"),
@@ -141,14 +89,9 @@ const els = {
 };
 
 const state = {
-  azureKey: localStorage.getItem(STORE.azureKey) || "",
-  azureRegion: localStorage.getItem(STORE.azureRegion) || DEFAULT_REGION,
   cambKey: localStorage.getItem(STORE.cambKey) || "",
-  elevenKey: localStorage.getItem(STORE.elevenKey) || "",
-  server: { azure: false, camb: false, elevenlabs: false },
+  serverCamb: false,
   voices: [],
-  cambVoices: [],
-  cloned: [],
   samples: [],
   history: [],
   busy: false,
@@ -157,23 +100,18 @@ const state = {
   recordingChunks: [],
   recordTimer: null,
   recordSeconds: 0,
-  pendingDelete: "",
   voiceTouched: false,
 };
 
 /* ---------------- boot ---------------- */
 
 const storedSpeed = Number.parseFloat(localStorage.getItem(STORE.speed) || "");
-const storedPitch = Number.parseFloat(localStorage.getItem(STORE.pitch) || "");
-
-els.speed.value = String(Number.isFinite(storedSpeed) ? clamp(storedSpeed, 0.5, 1.5) : 1);
-els.pitch.value = String(Number.isFinite(storedPitch) ? clamp(storedPitch, -30, 30) : 0);
-els.azureRegion.value = state.azureRegion;
+els.speed.value = String(Number.isFinite(storedSpeed) ? clamp(storedSpeed, 0.5, 2) : 1);
 els.text.value = localStorage.getItem(STORE.text) || "";
+els.cambKey.value = state.cambKey;
 
 renderVoices();
 updateVoiceUi();
-updateCloneFields();
 updateCount();
 updateRangeLabels();
 updateStatus();
@@ -181,33 +119,26 @@ boot();
 
 async function boot() {
   await checkHealth();
-  await loadVoices();
-  if (hasKey("camb")) loadCambVoices();
-  if (hasKey("elevenlabs")) loadCloned();
+  if (hasKey()) await loadVoices();
+  else renderVoices();
 }
 
 /* ---------------- keys ---------------- */
 
-function hasKey(provider) {
-  if (provider === "google") return true;
-  if (provider === "camb") return Boolean(state.cambKey || state.server.camb);
-  if (provider === "elevenlabs") return Boolean(state.elevenKey || state.server.elevenlabs);
-  return Boolean(state.azureKey || state.server.azure);
+function hasKey() {
+  return Boolean(state.cambKey || state.serverCamb);
 }
 
 function updateStatus() {
-  const parts = [];
-  if (hasKey("azure")) parts.push("Azure ✓");
-  if (hasKey("camb")) parts.push("CAMB ✓");
-  if (hasKey("elevenlabs")) parts.push("ElevenLabs ✓");
-
-  const message = parts.length
-    ? parts.join(" · ")
-    : "សំឡេងឥតគិតថ្លៃ ✓ · ចុច Keys សម្រាប់សំឡេងក្លូន";
-  const tone = parts.length ? "ok" : "warn";
-
-  els.status.textContent = message;
-  els.status.className = `status ${tone}`;
+  if (hasKey()) {
+    els.status.textContent = "CAMB.AI ✓ · MARS 8.1";
+    els.status.className = "status ok";
+    els.keysLabel.textContent = "CAMB.AI Key ✓";
+  } else {
+    els.status.textContent = "សំឡេងឥតគិតថ្លៃ ✓ · បញ្ចូល CAMB.AI key សម្រាប់សំឡេងខ្មែរពេញលេញ";
+    els.status.className = "status warn";
+    els.keysLabel.textContent = "CAMB.AI Key";
+  }
 }
 
 async function checkHealth() {
@@ -215,18 +146,10 @@ async function checkHealth() {
     const response = await fetch("/api/health");
     if (!response.ok) return;
     const data = await response.json();
-    state.server = {
-      azure: Boolean(data?.providers?.azure),
-      camb: Boolean(data?.providers?.camb),
-      elevenlabs: Boolean(data?.providers?.elevenlabs),
-    };
-    if (data?.defaultRegion && !localStorage.getItem(STORE.azureRegion)) {
-      state.azureRegion = data.defaultRegion;
-      els.azureRegion.value = data.defaultRegion;
-    }
+    state.serverCamb = Boolean(data?.providers?.camb);
     updateStatus();
   } catch {
-    /* offline: the free voice and saved keys still work */
+    /* offline: the free voice and a saved key still work */
   }
 }
 
@@ -240,7 +163,6 @@ function updateCount() {
 
 function updateRangeLabels() {
   els.speedVal.textContent = `${Number(els.speed.value).toFixed(2).replace(/0$/, "")}×`;
-  els.pitchVal.textContent = String(Math.round(Number(els.pitch.value)));
 }
 
 els.text.addEventListener("input", () => {
@@ -264,11 +186,6 @@ els.speed.addEventListener("input", () => {
   localStorage.setItem(STORE.speed, els.speed.value);
 });
 
-els.pitch.addEventListener("input", () => {
-  updateRangeLabels();
-  localStorage.setItem(STORE.pitch, els.pitch.value);
-});
-
 for (const button of document.querySelectorAll(".sample")) {
   button.addEventListener("click", () => {
     const sample = SAMPLES[button.dataset.sample];
@@ -282,30 +199,8 @@ for (const button of document.querySelectorAll(".sample")) {
 /* ---------------- voices ---------------- */
 
 async function loadVoices() {
-  const headers = {};
-  if (state.azureKey) {
-    headers["x-azure-key"] = state.azureKey;
-    headers["x-azure-region"] = state.azureRegion;
-  }
-
-  try {
-    const response = await fetch("/api/voices", { headers });
-    if (!response.ok) throw new Error("voice list failed");
-    const data = await response.json();
-    state.voices = Array.isArray(data?.voices) && data.voices.length ? data.voices : AZURE_FALLBACK;
-  } catch {
-    state.voices = AZURE_FALLBACK;
-    showError("មិនអាចផ្ទុកបញ្ជីសំឡេង Azure បានទេ — សំឡេងឥតគិតថ្លៃនៅតែប្រើបាន។");
-  }
-
-  renderVoices();
-  updateVoiceUi();
-}
-
-async function loadCambVoices() {
-  if (!hasKey("camb")) {
-    state.cambVoices = [];
-    renderLibrary();
+  if (!hasKey()) {
+    state.voices = [];
     renderVoices();
     return;
   }
@@ -313,69 +208,33 @@ async function loadCambVoices() {
   try {
     const headers = {};
     if (state.cambKey) headers["x-camb-key"] = state.cambKey;
-    const response = await fetch("/api/voices/camb", { headers });
-    const data = await response.json().catch(() => null);
-    if (!response.ok) {
-      state.cambVoices = [];
-      if (data?.error !== "no_key") els.cloneStatus.textContent = data?.message || "";
-    } else {
-      state.cambVoices = Array.isArray(data?.voices) ? data.voices : [];
-    }
-  } catch {
-    state.cambVoices = [];
-  }
-
-  renderLibrary();
-  renderVoices();
-}
-
-async function loadCloned() {
-  if (!hasKey("elevenlabs")) {
-    state.cloned = [];
-    renderLibrary();
-    renderVoices();
-    return;
-  }
-
-  try {
-    const headers = {};
-    if (state.elevenKey) headers["x-eleven-key"] = state.elevenKey;
-    const response = await fetch("/api/voices/cloned", { headers });
+    const response = await fetch("/api/voices", { headers });
     const data = await response.json().catch(() => null);
 
     if (!response.ok) {
-      state.cloned = [];
-      if (data?.message && data.error !== "no_key") {
-        els.cloneStatus.textContent = data.message;
-      }
+      state.voices = [];
+      const message = data?.message || `មិនអាចផ្ទុកបញ្ជីសំឡេងបានទេ (${response.status})។`;
+      els.cloneStatus.textContent = message;
+      if (data?.error !== "no_key") showError(message);
     } else {
-      state.cloned = Array.isArray(data?.voices) ? data.voices : [];
+      state.voices = Array.isArray(data?.voices) ? data.voices : [];
     }
   } catch {
-    state.cloned = [];
+    state.voices = [];
+    showError("មិនអាចភ្ជាប់ទៅ server បានទេ — សំឡេងឥតគិតថ្លៃនៅតែប្រើបាន។");
   }
 
-  renderLibrary();
   renderVoices();
-}
-
-function refreshVoices() {
-  loadCambVoices();
-  loadCloned();
+  renderLibrary();
 }
 
 function providerOf(value) {
   const [prefix] = String(value || "").split(":");
-  if (prefix === "google") return "google";
-  if (prefix === "camb") return "camb";
-  if (prefix === "eleven") return "elevenlabs";
-  return "azure";
+  return prefix === "camb" ? "camb" : "google";
 }
 
 function renderVoices() {
-  const previous = state.voiceTouched
-    ? els.voice.value
-    : localStorage.getItem(STORE.voice) || "";
+  const previous = state.voiceTouched ? els.voice.value : localStorage.getItem(STORE.voice) || "";
   const nodes = [];
 
   const free = document.createElement("optgroup");
@@ -385,67 +244,21 @@ function renderVoices() {
   }
   nodes.push(free);
 
-  if (state.cambVoices.length) {
+  if (state.voices.length) {
     const group = document.createElement("optgroup");
-    group.label = "🎙 CAMB.AI · ក្លូន / សំឡេងខ្ញុំ";
-    for (const voice of state.cambVoices) {
-      group.append(new Option(voice.name, `camb:${voice.id}`));
-    }
-    nodes.push(group);
-  }
-
-  if (state.cloned.length) {
-    const group = document.createElement("optgroup");
-    group.label = "🎙 ElevenLabs · សំឡេងខ្ញុំ";
-    for (const voice of state.cloned) {
-      group.append(new Option(voice.name, `eleven:${voice.id}`));
-    }
-    nodes.push(group);
-  }
-
-  const groups = new Map();
-  for (const voice of state.voices) {
-    const locale = voice.locale || "en-US";
-    if (!groups.has(locale)) {
-      groups.set(locale, {
-        label: LOCALE_LABELS[locale] || voice.localeName || locale,
-        voices: [],
-      });
-    }
-    groups.get(locale).voices.push(voice);
-  }
-
-  const ordered = [...groups.entries()].sort(([a], [b]) => {
-    if (a === "km-KH") return -1;
-    if (b === "km-KH") return 1;
-    return LOCALE_LABELS[a] ? LOCALE_LABELS[a].localeCompare(LOCALE_LABELS[b] || b) : a.localeCompare(b);
-  });
-
-  for (const [locale, group] of ordered) {
-    const optgroup = document.createElement("optgroup");
-    optgroup.label = group.label;
-    for (const voice of group.voices) {
+    group.label = "🎙 CAMB.AI · MARS 8.1";
+    for (const voice of state.voices) {
       const gender = voice.gender === "Female" ? "ស្រី" : voice.gender === "Male" ? "ប្រុស" : "";
-      optgroup.append(new Option(gender ? `${voice.name} · ${gender}` : voice.name, `azure:${voice.id}`));
+      group.append(new Option(gender ? `${voice.name} · ${gender}` : voice.name, `camb:${voice.id}`));
     }
-    nodes.push(optgroup);
+    nodes.push(group);
   }
 
   els.voice.replaceChildren(...nodes);
 
   const available = [...els.voice.options].map((option) => option.value);
-  const preferred = [
-    previous,
-    localStorage.getItem(STORE.voice) || "",
-    hasKey("azure") ? "azure:km-KH-SreymomNeural" : "",
-    "google:km",
-    available[0] || "",
-  ];
-
-  let chosen = preferred.find((value) => value && available.includes(value)) || "";
-  if (chosen && !hasKey(providerOf(chosen))) {
-    chosen = available.includes("google:km") ? "google:km" : chosen;
-  }
+  const preferred = [previous, localStorage.getItem(STORE.voice) || "", "google:km", available[0] || ""];
+  const chosen = preferred.find((value) => value && available.includes(value)) || "";
   els.voice.value = chosen;
 
   updateVoiceUi();
@@ -456,50 +269,29 @@ function currentVoice() {
   const provider = providerOf(value);
   const id = value.slice(value.indexOf(":") + 1);
   const label = els.voice.selectedOptions?.[0]?.textContent || id;
-  return { provider, id, label, value };
+  const match = state.voices.find((voice) => voice.id === id);
+  return { provider, id, label, value, language: match?.language || "" };
 }
 
 function updateVoiceUi() {
   const voice = currentVoice();
-  const needsPitch = voice.provider === "azure";
-  const needsSpeed = voice.provider === "azure" || voice.provider === "elevenlabs";
+  const needsSpeed = voice.provider === "camb";
 
-  els.pitchField.hidden = !needsPitch;
   els.speedField.hidden = !needsSpeed;
   els.voiceNote.hidden = false;
 
   if (!voice.value) {
-    els.voiceNote.textContent = "មិនទាន់មានសំឡេង — សូមផ្ទុកបញ្ជីឡើងវិញ។";
+    els.voiceNote.textContent = "មិនទាន់មានសំឡេង — បញ្ចូល CAMB.AI key ឬផ្ទុកបញ្ជីឡើងវិញ។";
+    updateRangeLabels();
     return;
   }
 
-  if (voice.provider === "google") {
-    els.voiceNote.textContent = "សំឡេងឥតគិតថ្លៃ · Google Translate (unofficial)";
-  } else if (voice.provider === "camb") {
-    els.voiceNote.textContent = "CAMB.AI · MARS 8.1 (ខ្មែរ + ក្លូន)";
-  } else if (voice.provider === "elevenlabs") {
-    els.voiceNote.textContent = "សំឡេងក្លូន · ElevenLabs (មិនគាំទ្រអក្សរខ្មែរ)";
-  } else {
-    const match = state.voices.find((entry) => entry.id === voice.id);
-    const locale = match?.locale || "";
-    els.voiceNote.textContent =
-      locale === "km-KH"
-        ? "សំឡេងខ្មែរ · Azure neural"
-        : `${LOCALE_LABELS[locale] || match?.localeName || locale} · Azure neural`;
-  }
+  els.voiceNote.textContent =
+    voice.provider === "google"
+      ? "សំឡេងឥតគិតថ្លៃ · Google Translate (unofficial)"
+      : "CAMB.AI · MARS 8.1 (ខ្មែរ + ក្លូន)";
 
-  if (voice.provider === "elevenlabs") {
-    els.speed.min = "0.7";
-    els.speed.max = "1.2";
-  } else {
-    els.speed.min = "0.5";
-    els.speed.max = "1.5";
-  }
-
-  if (Number(els.speed.value) < Number(els.speed.min)) els.speed.value = els.speed.min;
-  if (Number(els.speed.value) > Number(els.speed.max)) els.speed.value = els.speed.max;
   updateRangeLabels();
-
   if (state.voiceTouched && voice.value) localStorage.setItem(STORE.voice, voice.value);
 }
 
@@ -507,6 +299,47 @@ els.voice.addEventListener("change", () => {
   state.voiceTouched = true;
   updateVoiceUi();
 });
+
+function renderLibrary() {
+  els.cloned.replaceChildren(
+    ...state.voices.map((voice) => {
+      const item = document.createElement("li");
+      item.className = "voice-row";
+
+      const info = document.createElement("div");
+      info.className = "voice-info";
+
+      const name = document.createElement("p");
+      name.className = "voice-name";
+      name.textContent = voice.name;
+
+      const meta = document.createElement("p");
+      meta.className = "track-meta";
+      meta.textContent = `CAMB.AI · ${voice.language || "km-kh"}`;
+
+      info.append(name, meta);
+
+      const use = document.createElement("button");
+      use.type = "button";
+      use.className = "chip small";
+      use.textContent = "ប្រើ";
+      use.addEventListener("click", () => {
+        const value = `camb:${voice.id}`;
+        if (![...els.voice.options].some((option) => option.value === value)) return;
+        els.voice.value = value;
+        state.voiceTouched = true;
+        updateVoiceUi();
+        setTab("studio");
+        els.text.focus();
+      });
+
+      item.append(info, use);
+      return item;
+    }),
+  );
+
+  els.clonedEmpty.hidden = state.voices.length > 0;
+}
 
 /* ---------------- text to speech ---------------- */
 
@@ -522,28 +355,24 @@ async function generate() {
     return;
   }
   if (text.length > MAX_CHARS) {
-    showError(`អត្ថបទវែងពេក (អតិបរមា ${MAX_CHARS} តួអក្សរ)។`);
+    showError(`អត្ថបទវែងពេក (អតិបរមា ${MAX_CHARS.toLocaleString("en-US")} តួអក្សរ)។`);
     return;
   }
 
   const voice = currentVoice();
   if (!voice.id) {
-    showError("សូមជ្រើសរើសសំឡេងមួយសិន។");
+    showError("សូមជ្រើសរើសសំឡេងមួយសិន។ បញ្ចូល CAMB.AI key ដើម្បីទទួលបានសំឡេងខ្មែរ។");
     return;
   }
 
   if (voice.provider === "google" && text.length > FREE_MAX_CHARS) {
     showError(
-      `សំឡេងឥតគិតថ្លៃអានបានត្រឹម ${FREE_MAX_CHARS.toLocaleString("en-US")} តួអក្សរ។ សម្រាប់អត្ថបទវែង សូមប្រើសំឡេង Azure។`,
+      `សំឡេងឥតគិតថ្លៃអានបានត្រឹម ${FREE_MAX_CHARS.toLocaleString("en-US")} តួអក្សរ។ សម្រាប់អត្ថបទវែង សូមប្រើសំឡេង CAMB.AI។`,
     );
     return;
   }
-  if (voice.provider === "camb" && text.length > CAMB_MAX_CHARS) {
-    showError(`CAMB.AI អានបានត្រឹម ${CAMB_MAX_CHARS.toLocaleString("en-US")} តួអក្សរក្នុងមួយដង។`);
-    return;
-  }
-  if (!hasKey(voice.provider)) {
-    showError("ត្រូវការ API key សម្រាប់សំឡេងនេះ។ សូមបញ្ចូលវានៅប៊ូតុង Keys។");
+  if (voice.provider === "camb" && !hasKey()) {
+    showError("សំឡេង CAMB.AI ត្រូវការ key។ សូមបញ្ចូលវានៅប៊ូតុង CAMB.AI Key។");
     openKeys();
     return;
   }
@@ -553,26 +382,15 @@ async function generate() {
 
   try {
     const headers = { "content-type": "application/json" };
-    if (state.azureKey) {
-      headers["x-azure-key"] = state.azureKey;
-      headers["x-azure-region"] = state.azureRegion;
-    }
     if (state.cambKey) headers["x-camb-key"] = state.cambKey;
-    if (state.elevenKey) headers["x-eleven-key"] = state.elevenKey;
 
     const payload = { provider: voice.provider, voice: voice.id, text };
 
-    if (voice.provider === "azure") {
-      payload.rate = Number(els.speed.value);
-      payload.pitch = Number(els.pitch.value);
-    } else if (voice.provider === "elevenlabs") {
-      payload.speed = clamp(Number(els.speed.value), 0.7, 1.2);
-      payload.stability = 0.5;
-      payload.similarity = 0.75;
-    } else if (voice.provider === "google") {
+    if (voice.provider === "google") {
       payload.language = voice.id;
-    } else if (voice.provider === "camb") {
-      payload.language = "km-kh";
+    } else {
+      payload.language = voice.language || "km-kh";
+      payload.speed = Number(els.speed.value);
     }
 
     const response = await fetch("/api/tts", {
@@ -620,25 +438,14 @@ function revoke(url) {
   }
 }
 
-function extensionFor(blob) {
-  const type = (blob?.type || "").toLowerCase();
-  if (type.includes("wav")) return "wav";
-  if (type.includes("ogg")) return "ogg";
-  return "mp3";
-}
-
 function providerName(provider) {
-  if (provider === "elevenlabs") return "ElevenLabs";
-  if (provider === "camb") return "CAMB.AI";
-  if (provider === "google") return "Google (free)";
-  return "Azure";
+  return provider === "camb" ? "CAMB.AI" : "Google (free)";
 }
 
 function showClip(blob, info) {
   const url = makeUrl(blob);
   const at = Date.now();
-  const extension = extensionFor(blob);
-  const filename = `voice-${new Date(at).toISOString().slice(0, 19).replace(/[:T]/g, "-")}.${extension}`;
+  const filename = `voice-${new Date(at).toISOString().slice(0, 19).replace(/[:T]/g, "-")}.mp3`;
 
   revoke(state.resultUrl);
   state.resultUrl = url;
@@ -723,12 +530,12 @@ function replay(entry) {
   els.resultMeta.textContent = `${formatBytes(entry.size)} · ${providerName(entry.provider)}`;
 }
 
-/* ---------------- keys ---------------- */
+/* ---------------- key dialog ---------------- */
 
 els.keysBtn.addEventListener("click", openKeys);
-els.keySave.addEventListener("click", saveKeys);
+els.keySave.addEventListener("click", saveKey);
 els.keyCancel.addEventListener("click", closeKeys);
-els.keyClear.addEventListener("click", clearKeys);
+els.keyClear.addEventListener("click", clearKey);
 els.modal.addEventListener("click", (event) => {
   if (event.target === els.modal) closeKeys();
 });
@@ -737,45 +544,30 @@ document.addEventListener("keydown", (event) => {
 });
 
 function openKeys() {
-  els.azureKey.value = state.azureKey;
-  els.azureRegion.value = state.azureRegion;
   els.cambKey.value = state.cambKey;
-  els.elevenKey.value = state.elevenKey;
   els.keyError.hidden = true;
   els.modal.hidden = false;
-  els.azureKey.focus();
+  els.cambKey.focus();
 }
 
 function closeKeys() {
   els.modal.hidden = true;
 }
 
-function saveKeys() {
-  const region = (els.azureRegion.value || "").trim().toLowerCase() || DEFAULT_REGION;
-  if (!/^[a-z]{2,12}[a-z0-9-]{0,20}$/.test(region)) {
-    keyError("Region មិនត្រឹមត្រូវ — ឧ. southeastasia ឬ eastus។");
+async function saveKey() {
+  const key = els.cambKey.value.trim();
+  if (!key) {
+    keyError("សូមបញ្ចូល CAMB.AI API key។");
+    return;
+  }
+  if (key.length < 8) {
+    keyError("Key ខ្លីពេក — សូមពិនិត្យម្តងទៀត។");
     return;
   }
 
-  const azureKey = els.azureKey.value.trim();
-  const cambKey = els.cambKey.value.trim();
-  const elevenKey = els.elevenKey.value.trim();
-
-  if (!azureKey && !cambKey && !elevenKey) {
-    keyError("សូមបញ្ចូល key យ៉ាងតិចមួយ (Azure, CAMB.AI ឬ ElevenLabs)។");
-    return;
-  }
-
-  state.azureKey = azureKey;
-  state.azureRegion = region;
-  state.cambKey = cambKey;
-  state.elevenKey = elevenKey;
-
+  state.cambKey = key;
   try {
-    localStorage.setItem(STORE.azureKey, azureKey);
-    localStorage.setItem(STORE.azureRegion, region);
-    localStorage.setItem(STORE.cambKey, cambKey);
-    localStorage.setItem(STORE.elevenKey, elevenKey);
+    localStorage.setItem(STORE.cambKey, key);
   } catch {
     keyError("Browser មិនអនុញ្ញាតឱ្យរក្សាទុក key ទេ។");
     return;
@@ -784,32 +576,22 @@ function saveKeys() {
   els.keyError.hidden = true;
   closeKeys();
   updateStatus();
-  loadVoices();
-  refreshVoices();
+
+  await loadVoices();
+  if (!state.voices.length && hasKey()) {
+    showError("Key នេះមិនអាចផ្ទុកបញ្ជីសំឡេងបានទេ — សូមពិនិត្យថាវាត្រឹមត្រូវ។");
+  }
 }
 
-function clearKeys() {
-  state.azureKey = "";
+function clearKey() {
   state.cambKey = "";
-  state.elevenKey = "";
-  state.azureRegion = DEFAULT_REGION;
-  state.cambVoices = [];
-  state.cloned = [];
-
-  for (const key of [STORE.azureKey, STORE.azureRegion, STORE.cambKey, STORE.elevenKey]) {
-    localStorage.removeItem(key);
-  }
-
-  els.azureKey.value = "";
-  els.azureRegion.value = DEFAULT_REGION;
+  state.voices = [];
+  localStorage.removeItem(STORE.cambKey);
   els.cambKey.value = "";
-  els.elevenKey.value = "";
   els.keyError.hidden = true;
-
   updateStatus();
   renderLibrary();
   renderVoices();
-  loadVoices();
   closeKeys();
 }
 
@@ -837,36 +619,25 @@ function setTab(name) {
   els.studio.hidden = target !== "studio";
   els.clone.hidden = target !== "clone";
 
-  if (target === "clone") refreshVoices();
+  if (target === "clone" && hasKey() && !state.voices.length) loadVoices();
 }
 
 /* ---------------- voice cloning ---------------- */
 
 els.pickFiles.addEventListener("click", () => els.fileInput.click());
 els.fileInput.addEventListener("change", () => {
-  addSamples([...(els.fileInput.files || [])]);
+  addSample([...(els.fileInput.files || [])]);
   els.fileInput.value = "";
 });
 
 els.record.addEventListener("click", toggleRecord);
 els.createVoice.addEventListener("click", createVoice);
-els.refreshVoices.addEventListener("click", refreshVoices);
-els.cloneProvider.addEventListener("change", updateCloneFields);
+els.refreshVoices.addEventListener("click", () => loadVoices());
 
-function updateCloneFields() {
-  const camb = els.cloneProvider.value === "camb";
-  els.cloneGenderField.hidden = !camb;
-  els.cloneLangField.hidden = !camb;
-}
-
-function addSamples(files) {
+function addSample(files) {
   hideError();
 
   for (const file of files) {
-    if (state.samples.length >= MAX_CLONE_FILES) {
-      showError(`បន្ថែមបានអតិបរមា ${MAX_CLONE_FILES} ឯកសារ។`);
-      break;
-    }
     const looksAudio =
       (file.type || "").startsWith("audio/") || /\.(mp3|wav|m4a|ogg|oga|webm|flac|aac)$/i.test(file.name || "");
     if (!looksAudio) {
@@ -874,10 +645,10 @@ function addSamples(files) {
       continue;
     }
     if (file.size > MAX_CLONE_FILE_BYTES) {
-      showError("ឯកសារធំពេក (អតិបរមា 10 MB ក្នុងមួយឯកសារ)។");
+      showError("ឯកសារធំពេក (អតិបរមា 10 MB)។");
       continue;
     }
-    state.samples.push(file);
+    state.samples = [file];
   }
 
   renderSamples();
@@ -902,7 +673,7 @@ function renderSamples() {
       remove.className = "link-btn danger";
       remove.textContent = "លុប";
       remove.addEventListener("click", () => {
-        state.samples.splice(index, 1);
+        state.samples = [];
         renderSamples();
       });
 
@@ -948,9 +719,7 @@ async function toggleRecord() {
       state.recordTimer = null;
 
       if (blob.size > 0) {
-        addSamples([
-          new File([blob], `recording-${state.samples.length + 1}.${extension}`, { type }),
-        ]);
+        addSample([new File([blob], `recording-1.${extension}`, { type })]);
       }
     });
 
@@ -966,7 +735,7 @@ async function toggleRecord() {
       const minutes = Math.floor(state.recordSeconds / 60);
       const seconds = String(state.recordSeconds % 60).padStart(2, "0");
       els.recordTime.textContent = `${minutes}:${seconds}`;
-      if (state.recordSeconds >= 60) stopRecording();
+      if (state.recordSeconds >= 180) stopRecording();
     }, 1000);
   } catch {
     showError("មិនអាចបើកមីក្រូហ្វូនបានទេ។ សូមពិនិត្យការអនុញ្ញាតរបស់ browser។");
@@ -986,7 +755,6 @@ async function createVoice() {
   if (state.busy) return;
 
   const name = els.cloneName.value.trim();
-  const provider = els.cloneProvider.value === "elevenlabs" ? "elevenlabs" : "camb";
 
   if (!name) {
     showError("សូមដាក់ឈ្មោះសំឡេង។");
@@ -994,58 +762,42 @@ async function createVoice() {
     return;
   }
   if (state.samples.length === 0) {
-    showError("សូមបន្ថែមឯកសារសំឡេងយ៉ាងតិច ១។");
+    showError("សូមបន្ថែមឯកសារសំឡេង ១។");
     return;
   }
   if (!els.consent.checked) {
     showError("សូមធីកប្រអប់បញ្ជាក់ការយល់ព្រមជាមុន។");
     return;
   }
-  if (!hasKey(provider)) {
-    showError(
-      provider === "camb"
-        ? "ការក្លូនខ្មែរត្រូវការ CAMB.AI key។"
-        : "ការក្លូនដោយ ElevenLabs ត្រូវការ ElevenLabs key។",
-    );
+  if (!hasKey()) {
+    showError("ការក្លូនត្រូវការ CAMB.AI key។");
     openKeys();
     return;
   }
 
   hideError();
   setBusy(true);
-  els.cloneStatus.textContent =
-    provider === "camb"
-      ? "កំពុងក្លូនដោយ CAMB.AI… (អាចយូរ ១០–៦០ វិនាទី)"
-      : "កំពុងក្លូនដោយ ElevenLabs… (អាចយូរ ១០–៦០ វិនាទី)";
+  els.cloneStatus.textContent = "កំពុងក្លូនដោយ CAMB.AI… (អាចយូរ ១០–៦០ វិនាទី)";
 
   try {
-    let files = state.samples;
-    if (provider === "camb") {
-      files = [];
-      for (const file of state.samples) {
-        const prepared = CAMB_FILE_RE.test(file.name || "") ? file : await toWavFile(file);
-        if (prepared.size > MAX_CLONE_FILE_BYTES) {
-          throw new Error("ឯកសារបន្ទាប់ពីបំលែងធំពេក (អតិបរមា 10 MB)។");
-        }
-        files.push(prepared);
-      }
+    let file = state.samples[0];
+    if (!CAMB_FILE_RE.test(file.name || "")) {
+      file = await toWavFile(file);
+    }
+    if (file.size > MAX_CLONE_FILE_BYTES) {
+      throw new Error("ឯកសារបន្ទាប់ពីបំលែងធំពេក (អតិបរមា 10 MB)។");
     }
 
     const form = new FormData();
     form.append("name", name);
     form.append("consent", "true");
-    form.append("provider", provider);
-    if (provider === "camb") {
-      form.append("gender", els.cloneGender.value);
-      form.append("language", els.cloneLang.value);
-    }
-    for (const [index, file] of files.entries()) {
-      form.append("files", file, file.name || `sample-${index + 1}.wav`);
-    }
+    form.append("provider", "camb");
+    form.append("gender", els.cloneGender.value);
+    form.append("language", els.cloneLang.value);
+    form.append("files", file, file.name || "sample.wav");
 
     const headers = {};
-    if (provider === "camb" && state.cambKey) headers["x-camb-key"] = state.cambKey;
-    if (provider === "elevenlabs" && state.elevenKey) headers["x-eleven-key"] = state.elevenKey;
+    if (state.cambKey) headers["x-camb-key"] = state.cambKey;
 
     const response = await fetch("/api/voices/clone", { method: "POST", headers, body: form });
     const data = await response.json().catch(() => null);
@@ -1055,15 +807,11 @@ async function createVoice() {
     renderSamples();
     els.cloneName.value = "";
     els.consent.checked = false;
-    els.cloneStatus.textContent =
-      provider === "camb"
-        ? "✓ បង្កើតសំឡេងក្លូន (CAMB.AI) បានជោគជ័យ។ ជ្រើសវាក្នុងបញ្ជីសំឡេង។"
-        : "✓ បង្កើតសំឡេងក្លូន (ElevenLabs) បានជោគជ័យ។ ជ្រើសវាក្នុងបញ្ជីសំឡេង។";
+    els.cloneStatus.textContent = "✓ បង្កើតសំឡេងក្លូនបានជោគជ័យ។ ជ្រើសវាក្នុងបញ្ជីសំឡេង។";
 
-    if (provider === "camb") await loadCambVoices();
-    else await loadCloned();
+    await loadVoices();
 
-    const value = `${provider === "camb" ? "camb" : "eleven"}:${data?.voice_id}`;
+    const value = `camb:${data?.voice_id}`;
     if ([...els.voice.options].some((option) => option.value === value)) {
       els.voice.value = value;
       state.voiceTouched = true;
@@ -1134,103 +882,6 @@ function encodeWav(samples, sampleRate) {
   }
 
   return buffer;
-}
-
-function renderLibrary() {
-  const rows = [
-    ...state.cambVoices.map((voice) => ({
-      id: voice.id,
-      name: voice.name,
-      meta: "CAMB.AI · MARS 8.1",
-      provider: "camb",
-    })),
-    ...state.cloned.map((voice) => ({
-      id: voice.id,
-      name: voice.name,
-      meta: voice.cloned ? "ElevenLabs · សំឡេងក្លូន" : voice.category || "ElevenLabs",
-      provider: "elevenlabs",
-    })),
-  ];
-
-  els.cloned.replaceChildren(
-    ...rows.map((voice) => {
-      const item = document.createElement("li");
-      item.className = "voice-row";
-
-      const info = document.createElement("div");
-      info.className = "voice-info";
-
-      const name = document.createElement("p");
-      name.className = "voice-name";
-      name.textContent = voice.name;
-
-      const meta = document.createElement("p");
-      meta.className = "track-meta";
-      meta.textContent = voice.meta;
-
-      info.append(name, meta);
-
-      const use = document.createElement("button");
-      use.type = "button";
-      use.className = "chip small";
-      use.textContent = "ប្រើ";
-      use.addEventListener("click", () => {
-        const value = `${voice.provider === "camb" ? "camb" : "eleven"}:${voice.id}`;
-        if (![...els.voice.options].some((option) => option.value === value)) return;
-        els.voice.value = value;
-        state.voiceTouched = true;
-        updateVoiceUi();
-        setTab("studio");
-        els.text.focus();
-      });
-
-      item.append(info, use);
-
-      if (voice.provider === "elevenlabs") {
-        const remove = document.createElement("button");
-        remove.type = "button";
-        remove.className = "chip small danger";
-        remove.textContent = state.pendingDelete === voice.id ? "ប្រាកដ?" : "លុប";
-        remove.addEventListener("click", () => deleteCloned(voice));
-        item.append(remove);
-      }
-
-      return item;
-    }),
-  );
-
-  els.clonedEmpty.hidden = rows.length > 0;
-}
-
-async function deleteCloned(voice) {
-  if (state.pendingDelete !== voice.id) {
-    state.pendingDelete = voice.id;
-    renderLibrary();
-    setTimeout(() => {
-      if (state.pendingDelete === voice.id) {
-        state.pendingDelete = "";
-        renderLibrary();
-      }
-    }, 4000);
-    return;
-  }
-
-  state.pendingDelete = "";
-  try {
-    const headers = {};
-    if (state.elevenKey) headers["x-eleven-key"] = state.elevenKey;
-    const response = await fetch(`/api/voices/cloned/${encodeURIComponent(voice.id)}`, {
-      method: "DELETE",
-      headers,
-    });
-    const data = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(data?.message || "លុបមិនបានទេ។");
-    state.cloned = state.cloned.filter((entry) => entry.id !== voice.id);
-    renderLibrary();
-    renderVoices();
-  } catch (error) {
-    showError(error?.message || "លុបមិនបានទេ។");
-  }
 }
 
 /* ---------------- shared ui ---------------- */

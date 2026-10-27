@@ -33,16 +33,9 @@ const MIME = {
   ".txt": "text/plain; charset=utf-8",
 };
 
-// Server-side keys, if the operator set them. The browser may also send its
-// own key per request, exactly like on Cloudflare.
-const ENV_KEYS = [
-  "AZURE_SPEECH_KEY",
-  "AZURE_SPEECH_REGION",
-  "CAMB_API_KEY",
-  "CAMB_AI_API_KEY",
-  "ELEVENLABS_API_KEY",
-  "ELEVEN_LABS_API_KEY",
-];
+// Optional server-side CAMB.AI key. The browser may also send its own key per
+// request, exactly like on Cloudflare.
+const ENV_KEYS = ["CAMB_API_KEY", "CAMB_AI_API_KEY"];
 
 const env = { ASSETS: { fetch: serveAssets } };
 for (const key of ENV_KEYS) {

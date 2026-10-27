@@ -1,55 +1,48 @@
-# សំឡេង AI — អក្សរទៅសំឡេង
+# សំឡេង AI — អក្សរទៅសំឡេង (CAMB.AI)
 
-គេហទំព័របំលែងអក្សរទៅជាសំឡេង ដែលផ្តោតលើ **ភាសាខ្មែរ**។ មានផ្ទាំងទីពីរ
-សម្រាប់ **ក្លូនសំឡេងខ្លួនឯង** ហើយអាចបង្កើតសំឡេងខ្មែរបាន **ដោយឥតគិតថ្លៃ**
-ដោយមិនបាច់ដាក់ key។
+គេហទំព័របំលែងអក្សរទៅជាសំឡេង ដែលផ្តោតលើ **ភាសាខ្មែរ**។ មាន **key តែមួយប៉ុណ្ណោះ** —
+**CAMB.AI** — ហើយ key នោះគ្រប់គ្រាន់សម្រាប់ឲ្យគេហទំព័រដំណើរការពេញលេញ
+(សំឡេងខ្មែរ + ភាសាជាង ៣០០ + ការក្លូនសំឡេងខ្លួនឯង)។
 
 - Frontend៖ HTML + CSS + JS សុទ្ធ (គ្មាន build step)
-- Backend៖ Cloudflare Worker បិទបាំង key និងហៅ API ជំនួស browser
+- Backend៖ Cloudflare Worker (`worker.js`) ឬ Node server (`server.js`) សម្រាប់ Render —
+  ទាំងពីរប្រើ handler តែមួយ ដូច្នេះ API ដូចគ្នា
+- Key របស់អ្នករក្សាក្នុង browser (localStorage) ហើយផ្ញើទៅ server តែពេលបង្កើតសំឡេង
 
 ## Providers
 
 | Provider | Free? | ខ្មែរ? | ក្លូនសំឡេង? | ចំណាំ |
 | --- | --- | --- | --- | --- |
-| **Google Translate voice** | ✅ ឥតគិតថ្លៃ ១០០% | ✅ | ❌ | ឥតបាច់ key · ១,៥០០ តួអក្សរ · endpoint មិនផ្លូវការ (gTTS) · អាចត្រូវ rate limit |
-| **Azure AI Speech** | ៥០០,០០០ តួអក្សរ neural/ខែ (F0) | ✅ ២ សំឡេង | ❌ | គុណភាពល្អបំផុតសម្រាប់ខ្មែរ · ត្រូវការ key + region |
-| **CAMB.AI (MARS 8.1)** | Free plan: សំឡេងក្លូន ១ + ៥០០ តួអក្សរ | ✅ | ✅ | ផ្លូវតែមួយគត់សម្រាប់ “សំឡេងខ្ញុំ + ខ្មែរ” · ត្រូវការ key |
-| **ElevenLabs** | ១០,០០០ credits/ខែ | ❌ | ✅ | ល្អសម្រាប់អង់គ្លេស/ថៃ/វៀតណាម · instant cloning ត្រូវការ plan បង់ប្រាក់ |
+| **CAMB.AI MARS 8.1** | free plan មានកំណត់ | ✅ | ✅ | provider សំខាន់ · ត្រូវការ key មួយ |
+| **Google Translate voice** | ✅ ឥតគិតថ្លៃ ១០០% | ✅ | ❌ | key មិនបាច់ · ១,៥០០ តួអក្សរ · endpoint មិនផ្លូវការ (gTTS) · អាច rate limit |
 
 ## របៀបប្រើ
 
-1. បើក website → សំឡេង **“ខ្មែរ · Free”** ត្រូវបានជ្រើសស្រាប់ (ឥតបាច់ key)
-2. សរសេរអត្ថបទ → ចុច **បង្កើតសំឡេង** → លេង ឬចុច **ទាញយក**
-3. ចង់បានគុណភាពខ្ពស់ → ចុច **Keys** → ដាក់ Azure Speech key + region → ជ្រើសសំឡេង Azure
+1. បើកគេហទំព័រ → ចុច **CAMB.AI Key** (ខាងស្តាំលើ) → បិទភ្ជាប់ key → **រក្សាទុក**
+2. ជ្រើសសំឡេងក្នុងក្រុម **🎙 CAMB.AI · MARS 8.1** → សរសេរអត្ថបទ → **បង្កើតសំឡេង**
+3. លេង ឬចុច **ទាញយក** (MP3)
 4. ចង់បានសំឡេងខ្លួនឯង → ផ្ទាំង **សំឡេងខ្ញុំ**
 
-### សំឡេងឥតគិតថ្លៃ (gTTS style)
+មិនទាន់មាន key? ក្រុម **🎁 ឥតគិតថ្លៃ · Free** នៅតែបង្កើតសំឡេងខ្មែរបាន (ខ្លី)។
 
-- ប្រើ `translate.google.com/translate_tts` — endpoint ដែល library **gTTS** ប្រើ
-- គាំទ្រ ខ្មែរ / English / ไทย / Tiếng Việt
-- អតិបរមា **១,៥០០ តួអក្សរ** ក្នុងមួយដង (បំបែកជា chunk ≤ ១៨០ តួអក្សរ រួចបញ្ចូល MP3)
-- ⚠️ មិនមែន API ផ្លូវការទេ — Google អាច block/rate-limit ពេលប្រើច្រើន។
-  សម្រាប់ production គួរប្រើ Azure (មាន free tier ៥០០,០០០ តួអក្សរ/ខែ)
+យក key៖ https://studio.camb.ai → ផ្នែក **API** → បង្កើត API key។
 
 ## ការក្លូនសំឡេង
 
-1. ផ្ទាំង **សំឡេងខ្ញុំ** → ជ្រើស provider
-   - **CAMB.AI · ខ្មែរ** — សំឡេងក្លូននិយាយខ្មែរ (MARS 8.1 beta)
-   - **ElevenLabs · ភាសាដទៃ** — មិនគាំទ្រខ្មែរ
-2. ផ្ទុកឯកសារ ១–៣ ឬថតដោយមីក្រូហ្វូន (៣០ វិនាទី – ៣ នាទី ល្អបំផុត)
-3. ដាក់ឈ្មោះ → ធីកប្រអប់បញ្ជាក់ការយល់ព្រម → **បង្កើតសំឡេងក្លូន**
-4. សំឡេងក្លូនចូលក្នុងបញ្ជីសំឡេង (ក្រុម CAMB.AI ឬ ElevenLabs)
+1. ផ្ទាំង **សំឡេងខ្ញុំ** → ផ្ទុកឯកសារ **១** ឬថតដោយមីក្រូហ្វូន (៣០ វិនាទី – ៣ នាទី)
+2. ដាក់ឈ្មោះ · ជ្រើសស្រី/ប្រុស · ជ្រើសភាសាគំរូ → ធីកប្រអប់បញ្ជាក់ → **បង្កើតសំឡេងក្លូន**
+3. សំឡេងក្លូនចូលក្នុងបញ្ជីសំឡេងភ្លាម (CAMB.AI បង្កើតរួចភ្លាម) → ជ្រើសវាដើម្បីអានអត្ថបទ
 
-CAMB.AI ទទួល **mp3/wav/aac/flac** — ការថតក្នុង browser (webm/opus) ត្រូវបានបំលែង
-ទៅ WAV ស្វ័យប្រវត្តិនៅក្នុង browser។ សម្រាប់ CAMB.AI ឯកសារទីមួយត្រូវបានប្រើ។
+CAMB.AI ទទួល **mp3/wav/aac/flac** — ការថតក្នុង browser (webm/opus) ត្រូវបានបំលែងទៅ
+WAV ស្វ័យប្រវត្តិនៅក្នុង browser មុនផ្ញើ។
 
 > **សំខាន់៖** សូមក្លូនតែសំឡេងខ្លួនឯង ឬសំឡេងដែលអ្នកមានការអនុញ្ញាតច្បាស់លាស់។
 > ការប្រើសំឡេងអ្នកដទៃដើម្បីបោកប្រាស់ គឺខុសច្បាប់ និងខុសលក្ខខណ្ឌរបស់ provider។
 
 ## “ធ្វើឱ្យដូចសំឡេង upload 100%” — ការពិត
 
-**គ្មានប្រព័ន្ធ TTS ណាធានាដូច 100% ទេ** ហើយការផ្សាយពាណិជ្ជកម្មបែបនោះគឺ
-លើសពីការពិត។ លេខដែលបានផ្សព្វផ្សាយ (speaker-embedding similarity មិនមែន % ដូច):
+**គ្មានប្រព័ន្ធ TTS ណាធានាដូច 100% ទេ។** លេខដែលបានផ្សព្វផ្សាយ
+(speaker-embedding similarity មិនមែន % ដូច):
 
 | ប្រព័ន្ធ | លទ្ធផលដែលបានផ្សព្វផ្សាយ | ធៀបនឹងសំឡេងពិត |
 | --- | --- | --- |
@@ -57,71 +50,68 @@ CAMB.AI ទទួល **mp3/wav/aac/flac** — ការថតក្នុង bro
 | F5-TTS | SIM-o 0.67 | 0.73 |
 | RVC v2 (បណ្តុះលើ ៣៩ នាទី) | Resemblyzer 0.846 | 0.898 |
 
-ផ្លូវដែលដូចបំផុត បើចាំបាច់៖
+ផ្លូវដែលជិតបំផុត៖
 
 1. **CAMB.AI clone** — ងាយបំផុត, cloud, គាំទ្រខ្មែរ, ប៉ុន្តែគ្រាន់តែ “ស្រដៀងខ្លាំង”
-2. **ElevenLabs Professional Voice Clone** — ត្រូវការ ៣០ នាទី – ៣ ម៉ោង នៃសំឡេង និង plan បង់ប្រាក់ (មិនគាំទ្រខ្មែរ)
-3. **RVC (voice conversion)** — ដូចបំផុតផ្នែក timbre ព្រោះវាបំលែងសំឡេងដែលមានស្រាប់
-   (ឧ. សំឡេង Azure អានខ្មែរ → បំលែងទៅសំឡេងអ្នក)។ ត្រូវការ GPU + បណ្តុះម៉ូដែល
+2. **RVC (voice conversion)** — ដូចបំផុតផ្នែក timbre ព្រោះវាបំលែងសំឡេងដែលមានស្រាប់
+   (ឧ. សំឡេងអានខ្មែរ → បំលែងទៅសំឡេងអ្នក)។ ត្រូវការ GPU + បណ្តុះម៉ូដែល
    លើ ១០–៥០ នាទី នៃសំឡេងអ្នក។ មិនឥតគិតថ្លៃ និងមិន 100% ដែរ។
 
 ## Keys ដាក់នៅឯណា
 
-**ក្នុង browser** (ណែនាំសម្រាប់ការប្រើឯកជន)
-- `localStorage`: `voicesite.azureKey`, `voicesite.azureRegion`, `voicesite.cambKey`, `voicesite.elevenKey`
-- ផ្ញើទៅ server ជា header `x-azure-key` / `x-azure-region` / `x-camb-key` / `x-eleven-key`
-- មិនដាក់ក្នុង HTML, log ឬ git
+**ក្នុង browser** (ណែនាំ — គេហទំព័រនេះធ្វើបែបនេះស្រាប់)
+- `localStorage`: `voicesite.cambKey`
+- ផ្ញើទៅ server ជា header `x-camb-key`
+- មិនដាក់ក្នុង HTML, log ឬ git — មិនប៉ះពាល់អ្នកប្រើដទៃ
 
-**នៅ server** (ឱ្យអ្នកចូលមើលប្រើបាន)
-- `AZURE_SPEECH_KEY` + `AZURE_SPEECH_REGION`
-- `CAMB_API_KEY`
-- `ELEVENLABS_API_KEY`
-- ដាក់ក្នុង **Sites → Secrets** ឬ `npx wrangler secret put CAMB_API_KEY`
-
-យក key៖
-- Azure Speech — https://portal.azure.com → **Speech** resource (free tier F0)
-- CAMB.AI — https://studio.camb.ai → Settings → API Keys
-- ElevenLabs — https://elevenlabs.io/app/settings/api-keys
+**នៅ server** (ស្រេចចិត្ត — បើចង់ឲ្យអ្នកចូលមើលប្រើបានដោយមិនបាច់មាន key ខ្លួនឯង)
+- Render → **Environment** → `CAMB_API_KEY`
+- Cloudflare → `npx wrangler secret put CAMB_API_KEY`
 
 ## ដែនកំណត់
 
 | អ្វី | ចំនួន |
 | --- | --- |
-| អត្ថបទ Azure / ElevenLabs | ៥,០០០ តួអក្សរ |
-| អត្ថបទ CAMB.AI | ៣,០០០ តួអក្សរ |
+| អត្ថបទ CAMB.AI | ៣,០០០ តួអក្សរ / សំណើ |
 | អត្ថបទ Google free | ១,៥០០ តួអក្សរ |
-| ឯកសារក្លូន | ១–៣ · ១០ MB/ឯកសារ · ៣០ MB សរុប |
+| ឯកសារក្លូន | ១ ឯកសារ · ១០ MB |
 | ប្រវត្តិ | ៦ សំឡេងចុងក្រោយ ក្នុងវគ្គនេះ (refresh → បាត់) |
 
 ## API routes
 
 | Route | តួនាទី |
 | --- | --- |
-| `POST /api/tts` | បង្កើតសំឡេង (`provider: google \| azure \| camb \| elevenlabs`) |
-| `GET /api/voices` | បញ្ជីសំឡេង Azure (ឬ builtin) |
-| `GET /api/voices/camb` | បញ្ជីសំឡេង CAMB.AI |
-| `GET /api/voices/cloned` | បញ្ជីសំឡេង ElevenLabs |
-| `POST /api/voices/clone` | ក្លូន (multipart, `provider=camb\|elevenlabs`, `consent=true`) |
-| `DELETE /api/voices/cloned/:id` | លុបសំឡេង ElevenLabs |
-| `GET /api/health` | ស្ថានភាព server keys |
+| `POST /api/tts` | បង្កើតសំឡេង (`provider: camb \\| google`) |
+| `GET /api/voices` | បញ្ជីសំឡេង CAMB.AI (ត្រូវការ `x-camb-key`) |
+| `GET /api/voices/camb` | ដូច `/api/voices` (ឈ្មោះចាស់) |
+| `POST /api/voices/clone` | ក្លូន (multipart: `name`, `consent=true`, `gender`, `language`, `files`) |
+| `GET /api/health` | ស្ថានភាព server key |
+
+សំណើ POST ត្រូវមកពី origin ដូចគ្នា (ការពារ cross-site abuse)។
+នៅពីក្រោយ reverse proxy ដូច Render, `worker.js` ប្រៀបធៀបតែ **host**
+ព្រោះ proxy បំលែង https → http។
 
 ## Run / តេស្ត / Deploy
 
 ```bash
 npm install
-npm run dev        # http://localhost:3000
-npm run check      # worker routes + jsdom UI
-npx wrangler deploy
+npm run dev        # Cloudflare Worker នៅ http://localhost:3000
+npm start          # Node server (ដូច Render) នៅ $PORT ឬ 8787
+npm run check      # ១២០ តេស្ត៖ worker routes + jsdom UI
 ```
 
-ឬតាម Freebuff Sites៖ ប្រើ `sites-manifest.json`។
+- **Render**៖ Web Service → runtime **Node** → Build `npm install` → Start `npm start`។
+  Push ទៅ branch `main` → Render deploy ស្វ័យប្រវត្តិ។
+- **Cloudflare**៖ `npx wrangler deploy` (ឬប្រើ `sites-manifest.json`)។
 
 ## Files
 
 | File | តួនាទី |
 | --- | --- |
-| `worker.js` | TTS (៤ providers), voice lists, cloning, origin guard |
-| `public/index.html` | ផ្ទាំងស្ទូឌីយោ + ក្លូនសំឡេង |
+| `worker.js` | TTS (CAMB.AI + free), បញ្ជីសំឡេង, ក្លូន, origin guard |
+| `server.js` | Node entry point សម្រាប់ Render (ប្រើ `worker.js` ដូចគ្នា) |
+| `public/index.html` | ផ្ទាំងស្ទូឌីយោ + ក្លូនសំឡេង + key dialog |
 | `public/styles.css` | រចនាប័ទ្ម |
-| `public/app.js` | voice picker, ប្រវត្តិ, ការក្លូន, key modal |
-| `scripts/check-*.mjs` | តេស្ត |
+| `public/app.js` | voice picker, ប្រវត្តិ, ការក្លូន, key dialog |
+| `scripts/check-worker.mjs` | តេស្ត API (mock upstream) |
+| `scripts/check-ui.mjs` | តេស្ត front end ក្នុង jsdom |
