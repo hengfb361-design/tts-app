@@ -28,6 +28,7 @@ function json(data, status = 200) {
 
 function boot({
   key = "",
+  voice = "",
   server = { camb: false, google: true },
   own = OWN,
   keyStatus = 200,
@@ -85,6 +86,7 @@ function boot({
   };
 
   if (key) window.localStorage.setItem("voicesite.cambKey", key);
+  if (voice) window.localStorage.setItem("voicesite.voice", voice);
 
   window.eval(appJs);
   return { window, doc: window.document, requests };
@@ -180,6 +182,17 @@ function attachSample(window, doc, name = "sample.wav") {
   check("speed forwarded", tts?.body.speed === 1.3);
   check("key header on tts", tts?.headers["x-camb-key"] === "camb-test-key-123");
   check("clone credited in meta", (await waitFor(() => doc.getElementById("result-meta").textContent.includes("CAMB.AI"))) === true);
+}
+
+/* 2b. a remembered free voice never overrides the clone */ {
+  console.log("own voice wins on load");
+  const { doc } = boot({ key: "camb-test-key-123", voice: "google:vi" });
+  await waitFor(() => options(doc).some((entry) => entry.value === "camb:98765"));
+  await settle();
+
+  check("clone selected although a free voice was remembered", doc.getElementById("voice").value === "camb:98765");
+  check("clones listed before the free voices", options(doc)[0].value.startsWith("camb:"));
+  check("free voices still available", options(doc).some((entry) => entry.value === "google:vi"));
 }
 
 /* 3. key set but no clones yet */ {

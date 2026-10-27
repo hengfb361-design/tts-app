@@ -281,15 +281,9 @@ function providerOf(value) {
 }
 
 function renderVoices() {
-  const previous = state.voiceTouched ? els.voice.value : localStorage.getItem(STORE.voice) || "";
+  const previous = state.voiceTouched ? els.voice.value : "";
+  const stored = localStorage.getItem(STORE.voice) || "";
   const nodes = [];
-
-  const free = document.createElement("optgroup");
-  free.label = "🎁 ឥតគិតថ្លៃ · Free";
-  for (const voice of FREE_VOICES) {
-    free.append(new Option(voice.name, `google:${voice.id}`));
-  }
-  nodes.push(free);
 
   if (state.clones.length) {
     const group = document.createElement("optgroup");
@@ -300,20 +294,33 @@ function renderVoices() {
     nodes.push(group);
   }
 
+  const free = document.createElement("optgroup");
+  free.label = "🎁 ឥតគិតថ្លៃ · សាកល្បង";
+  for (const voice of FREE_VOICES) {
+    free.append(new Option(voice.name, `google:${voice.id}`));
+  }
+  nodes.push(free);
+
   els.voice.replaceChildren(...nodes);
 
   const available = [...els.voice.options].map((option) => option.value);
-  const firstClone = state.clones[0];
-  const preferred = [
-    previous,
-    localStorage.getItem(STORE.voice) || "",
-    firstClone ? `camb:${firstClone.id}` : "",
-    "google:km",
-    available[0] || "",
-  ];
-  const chosen = preferred.find((value) => value && available.includes(value)) || "";
-  els.voice.value = chosen;
+  let chosen = "";
 
+  if (state.clones.length) {
+    // The visitor's own voice always wins on load: a free voice remembered from
+    // an earlier visit must never override a finished clone.
+    const cloneValues = new Set(state.clones.map((voice) => `camb:${voice.id}`));
+    const candidates = [previous, cloneValues.has(stored) ? stored : "", `camb:${state.clones[0].id}`];
+    chosen = candidates.find((value) => value && available.includes(value)) || "";
+    if (!chosen) chosen = available.find((value) => cloneValues.has(value)) || "";
+  } else {
+    chosen =
+      [previous, stored, "google:km", available[0] || ""].find(
+        (value) => value && available.includes(value),
+      ) || "";
+  }
+
+  els.voice.value = chosen;
   updateVoiceUi();
 }
 
