@@ -97,7 +97,7 @@ WAV ស្វ័យប្រវត្តិនៅក្នុង browser មុ�
 npm install
 npm run dev        # Cloudflare Worker នៅ http://localhost:3000
 npm start          # Node server (ដូច Render) នៅ $PORT ឬ 8787
-npm run check      # ១២០ តេស្ត៖ worker routes + jsdom UI
+npm run check      # តេស្ត៖ worker routes (mock CAMB.AI) + jsdom UI
 ```
 
 - **Render**៖ Web Service → runtime **Node** → Build `npm install` → Start `npm start`។
